@@ -21,30 +21,21 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Create Google credentials file
-        env:
-          GOOGLE_CREDENTIALS_B64: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_B64 }}
         run: |
-          if [ -z "$GOOGLE_CREDENTIALS_B64" ]; then
-            echo "GOOGLE_APPLICATION_CREDENTIALS_B64 secret missing hai."
-            exit 1
-          fi
-
-          echo "$GOOGLE_CREDENTIALS_B64" | base64 --decode > "$RUNNER_TEMP/gcp-key.json"
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Generate story
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        run: python main.py
+        run: |
+          python main.py
 
-      - name: Generate six Imagen scenes
+      - name: Generate six Gemini image scenes
         env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          GCP_LOCATION: us-central1
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-key.json
-        run: python image_generator.py
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          python image_generator.py
 
       - name: Upload story and images
         if: always()
@@ -52,7 +43,6 @@ jobs:
         with:
           name: milo-story-and-images
           path: |
-            output/*.json
-            output/images/*.png
+            output/
           if-no-files-found: warn
           retention-days: 7
