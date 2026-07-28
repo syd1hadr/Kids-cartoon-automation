@@ -3,9 +3,13 @@ name: Milo Story Brain
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   generate-story:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -23,3 +27,11 @@ jobs:
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: python main.py
+
+      - name: Upload generated story
+        uses: actions/upload-artifact@v4
+        with:
+          name: milo-story
+          path: output/*.json
+          if-no-files-found: error
+          retention-days: 7
