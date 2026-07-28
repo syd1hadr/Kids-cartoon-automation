@@ -1,1 +1,1 @@
-Print("Milo & Frends Story Brain V1")
+print("Milo & Frends Story Brain V1")
