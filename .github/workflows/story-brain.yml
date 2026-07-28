@@ -9,7 +9,7 @@ permissions:
 jobs:
   generate-story:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -23,15 +23,36 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Story Brain
+      - name: Create Google credentials file
+        env:
+          GOOGLE_CREDENTIALS_B64: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_B64 }}
+        run: |
+          if [ -z "$GOOGLE_CREDENTIALS_B64" ]; then
+            echo "GOOGLE_APPLICATION_CREDENTIALS_B64 secret missing hai."
+            exit 1
+          fi
+
+          echo "$GOOGLE_CREDENTIALS_B64" | base64 --decode > "$RUNNER_TEMP/gcp-key.json"
+
+      - name: Generate story
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: python main.py
 
-      - name: Upload generated story
+      - name: Generate six Imagen scenes
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_LOCATION: us-central1
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-key.json
+        run: python image_generator.py
+
+      - name: Upload story and images
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: milo-story
-          path: output/*.json
-          if-no-files-found: error
+          name: milo-story-and-images
+          path: |
+            output/*.json
+            output/images/*.png
+          if-no-files-found: warn
           retention-days: 7
