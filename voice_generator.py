@@ -23,7 +23,7 @@ def get_latest_story_file() -> Path:
     story_files = list(output_dir.glob("*.json"))
 
     if not story_files:
-        raise RuntimeError("Story JSON file nahi mili.")
+        raise RuntimeError("output folder mein story JSON nahi mili.")
 
     return max(
         story_files,
@@ -72,7 +72,7 @@ def build_narration(story: dict) -> str:
 
     if not narration_text:
         raise RuntimeError(
-            "Story mein voice banane ke liye narration nahi mili."
+            "Voice banane ke liye narration text nahi mila."
         )
 
     return narration_text
@@ -90,36 +90,43 @@ def generate_voice(
         )
 
     if not VOICE_ID:
-        raise RuntimeError("ELEVENLABS_VOICE_ID empty hai.")
+        raise RuntimeError(
+            "ELEVENLABS_VOICE_ID empty hai."
+        )
 
     client = ElevenLabs(api_key=api_key)
 
     print("ElevenLabs voice generate ho rahi hai...")
     print(f"Voice ID: {VOICE_ID}")
-    print(f"Text characters: {len(narration_text)}")
+    print(f"Narration characters: {len(narration_text)}")
 
-    audio_response = client.text_to_speech.convert(
+    audio = client.text_to_speech.convert(
         voice_id=VOICE_ID,
-        output_format="mp3_44100_128",
         text=narration_text,
         model_id=MODEL_ID,
+        output_format="mp3_44100_128",
         voice_settings=VoiceSettings(
             stability=0.45,
             similarity_boost=0.75,
-            style=0.25,
+            style=0.20,
             use_speaker_boost=True,
             speed=1.05,
         ),
     )
 
     with audio_path.open("wb") as audio_file:
-        for chunk in audio_response:
+        for chunk in audio:
             if chunk:
                 audio_file.write(chunk)
 
-    if not audio_path.exists() or audio_path.stat().st_size == 0:
+    if not audio_path.exists():
         raise RuntimeError(
-            "ElevenLabs ne valid MP3 file generate nahi ki."
+            "Narration MP3 create nahi hui."
+        )
+
+    if audio_path.stat().st_size == 0:
+        raise RuntimeError(
+            "Narration MP3 empty hai."
         )
 
 
@@ -127,12 +134,16 @@ def main() -> None:
     print("Milo & Friends voice generator start ho raha hai...")
 
     story_path = get_latest_story_file()
-    story = load_story(story_path)
+    print(f"Story file: {story_path}")
 
+    story = load_story(story_path)
     narration_text = build_narration(story)
 
     audio_dir = Path("output/audio")
-    audio_dir.mkdir(parents=True, exist_ok=True)
+    audio_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
     audio_path = audio_dir / "narration.mp3"
     script_path = audio_dir / "narration.txt"
