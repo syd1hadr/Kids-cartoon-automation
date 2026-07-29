@@ -41,7 +41,11 @@ jobs:
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
         run: python voice_generator.py
-        
+      
+      - name: Generate final Shorts video
+        run: |
+          python video_generator.py
+          
       - name: Upload story and images
         if: always()
         uses: actions/upload-artifact@v4
