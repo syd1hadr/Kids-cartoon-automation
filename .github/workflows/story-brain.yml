@@ -45,7 +45,14 @@ jobs:
       - name: Generate final Shorts video
         run: |
           python video_generator.py
-          
+
+      - name: Upload to YouTube
+        env:
+          YOUTUBE_CREDENTIALS_B64: ${{ secrets.YOUTUBE_CREDENTIALS_B64 }}
+          YOUTUBE_PRIVACY_STATUS: private
+        run: |
+          python youtube_uploader.py
+    
       - name: Upload story and images
         if: always()
         uses: actions/upload-artifact@v4
