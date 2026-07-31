@@ -1,4 +1,4 @@
-name: Milo Story Brain
+name: Milo Nursery Rhyme Studio
 
 on:
   workflow_dispatch:
@@ -7,9 +7,9 @@ permissions:
   contents: read
 
 jobs:
-  generate-story:
+  create-content:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repository
@@ -26,46 +26,62 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Generate story
+      - name: Find trending nursery rhyme topic
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        run: python main.py
+          YOUTUBE_TREND_REGION: US
+          YOUTUBE_TREND_LANGUAGE: en
+        run: |
+          python trend_finder.py
 
-      - name: Generate six Gemini image scenes
+      - name: Generate trend-based nursery rhyme plan
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          python main.py
+
+      - name: Generate six Short images
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-        run: python image_generator.py
+        run: |
+          python image_generator.py
 
-      - name: Generate ElevenLabs voice
+      - name: Generate Short rhyme audio
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
-        run: python voice_generator.py
+          ELEVENLABS_MODEL_ID: eleven_flash_v2_5
+        run: |
+          python voice_generator.py
 
-      - name: Generate final Shorts video
+      - name: Generate final Short video
         env:
           BACKGROUND_MUSIC_PATH: assets/music/bg_music.mp3
           VOICE_VOLUME: "1.0"
           MUSIC_VOLUME: "0.16"
-        run: python video_generator.py
+        run: |
+          python video_generator.py
 
-      - name: Upload to YouTube
+      - name: Upload Short automatically to YouTube
         env:
           YOUTUBE_CREDENTIALS_B64: ${{ secrets.YOUTUBE_CREDENTIALS_B64 }}
           YOUTUBE_PRIVACY_STATUS: ${{ secrets.YOUTUBE_PRIVACY_STATUS }}
-        run: python youtube_uploader.py
+        run: |
+          python youtube_uploader.py
 
-      - name: Upload generated output
+      - name: Upload all generated files
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: milo-generated-output
-          path: output/
+          name: milo-nursery-rhyme-output
+          path: |
+            output/
+            trend_history.json
           if-no-files-found: warn
           retention-days: 7
