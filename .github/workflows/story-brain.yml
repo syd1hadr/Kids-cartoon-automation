@@ -52,19 +52,18 @@ jobs:
         run: |
           python image_generator.py
 
-      - name: Generate Short rhyme audio
+      - name: Generate proper Short and Long nursery songs
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
-          ELEVENLABS_MODEL_ID: eleven_flash_v2_5
+          ELEVENLABS_MUSIC_MODEL_ID: music_v2
         run: |
-          python voice_generator.py
+          python song_generator.py
 
       - name: Generate final Short video
         env:
           BACKGROUND_MUSIC_PATH: assets/music/bg_music.mp3
           VOICE_VOLUME: "1.0"
-          MUSIC_VOLUME: "0.16"
+          MUSIC_VOLUME: "0.0"
         run: |
           python video_generator.py
 
