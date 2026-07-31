@@ -19,6 +19,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
 
       - name: Install dependencies
         run: |
@@ -28,37 +34,38 @@ jobs:
       - name: Generate story
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        run: |
-          python main.py
+        run: python main.py
 
       - name: Generate six Gemini image scenes
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        run: |
-          python image_generator.py
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: python image_generator.py
 
       - name: Generate ElevenLabs voice
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
         run: python voice_generator.py
-      
+
       - name: Generate final Shorts video
-        run: |
-          python video_generator.py
+        env:
+          BACKGROUND_MUSIC_PATH: assets/music/bg_music.mp3
+          VOICE_VOLUME: "1.0"
+          MUSIC_VOLUME: "0.16"
+        run: python video_generator.py
 
       - name: Upload to YouTube
         env:
           YOUTUBE_CREDENTIALS_B64: ${{ secrets.YOUTUBE_CREDENTIALS_B64 }}
-          YOUTUBE_PRIVACY_STATUS: private
-        run: |
-          python youtube_uploader.py
-    
-      - name: Upload story and images
+          YOUTUBE_PRIVACY_STATUS: ${{ secrets.YOUTUBE_PRIVACY_STATUS }}
+        run: python youtube_uploader.py
+
+      - name: Upload generated output
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: milo-story-and-images
-          path: |
-            output/
+          name: milo-generated-output
+          path: output/
           if-no-files-found: warn
           retention-days: 7
