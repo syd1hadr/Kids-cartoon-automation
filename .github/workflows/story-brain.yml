@@ -15,6 +15,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Restore topic history
+        uses: actions/cache/restore@v4
+        with:
+          path: data/topic_history.json
+          key: milo-topic-history-${{ github.run_id }}
+          restore-keys: |
+            milo-topic-history-
+
+      - name: Show restored topic history
+        run: |
+          if [ -f data/topic_history.json ]; then
+            echo "Previous topic history restore ho gayi."
+            cat data/topic_history.json
+          else
+            echo "Pehla unique-topic run hai. Nayi history banegi."
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -39,13 +56,13 @@ jobs:
         run: |
           python trend_finder.py
 
-      - name: Generate trend-based nursery rhyme plan
+      - name: Generate unique trend-based nursery rhyme
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
           python main.py
 
-      - name: Generate six Short images
+      - name: Generate Short and Long images
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
@@ -59,28 +76,32 @@ jobs:
         run: |
           python song_generator.py
 
-      - name: Generate final Short video
-        env:
-          BACKGROUND_MUSIC_PATH: assets/music/bg_music.mp3
-          VOICE_VOLUME: "1.0"
-          MUSIC_VOLUME: "0.0"
+      - name: Generate Short and Long videos
         run: |
           python video_generator.py
 
-      - name: Upload Short automatically to YouTube
+      - name: Upload Short and Long automatically to YouTube
         env:
           YOUTUBE_CREDENTIALS_B64: ${{ secrets.YOUTUBE_CREDENTIALS_B64 }}
           YOUTUBE_PRIVACY_STATUS: ${{ secrets.YOUTUBE_PRIVACY_STATUS }}
         run: |
           python youtube_uploader.py
 
+      - name: Save updated topic history
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: data/topic_history.json
+          key: milo-topic-history-${{ github.run_id }}
+
       - name: Upload all generated files
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: milo-nursery-rhyme-output
+          name: milo-nursery-rhyme-output-${{ github.run_id }}
           path: |
             output/
+            data/topic_history.json
             trend_history.json
           if-no-files-found: warn
           retention-days: 7
