@@ -42,7 +42,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg blender
+          ffmpeg -version
           blender --version
+
+      - name: Test Blender background mode
+        run: |
+          blender --background --python-expr "import bpy; print('BLENDER_TEST_OK', bpy.app.version_string)"
 
       - name: Install Python dependencies
         run: |
