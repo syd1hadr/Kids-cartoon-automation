@@ -20,36 +20,6 @@ MAX_RETRIES = 3
 REQUEST_PAUSE_SECONDS = 2
 
 
-CHARACTER_DESIGNS = """
-Milo:
-- baby orange-and-white kitten
-- large bright blue eyes
-- blue T-shirt
-- red shorts
-- white shoes
-- brave, kind and curious
-
-Coco:
-- small white puppy
-- light-brown floppy ears
-- yellow hoodie
-- blue shoes
-- loyal, energetic and funny
-
-Poko:
-- cute baby panda
-- green overalls
-- tiny red backpack
-- lovable and clumsy
-
-Ducky:
-- tiny yellow duckling
-- purple cap
-- tiny blue bag
-- cheerful and clever
-""".strip()
-
-
 def get_client() -> genai.Client:
     api_key = os.getenv("GOOGLE_API_KEY", "").strip()
 
@@ -339,7 +309,7 @@ Return only the completed image.
 """.strip()
 
 
-def decode_output_image(interaction) -> bytes:
+def decode_output_image(interaction: Any) -> bytes:
     output_image = getattr(
         interaction,
         "output_image",
@@ -361,7 +331,12 @@ def decode_output_image(interaction) -> bytes:
     if isinstance(raw_data, bytes):
         return raw_data
 
-    return base64.b64decode(str(raw_data))
+    try:
+        return base64.b64decode(str(raw_data))
+    except Exception as error:
+        raise RuntimeError(
+            "Gemini image Base64 decode nahi hui."
+        ) from error
 
 
 def generate_image_with_model(
@@ -375,7 +350,7 @@ def generate_image_with_model(
         input=prompt,
         response_format={
             "type": "image",
-            "mime_type": "image/png",
+            "mime_type": "image/jpeg",
             "aspect_ratio": aspect_ratio,
             "image_size": "1K",
         },
@@ -597,9 +572,7 @@ def generate_long_images(
         if index < len(ordered_segments) - 1:
             time.sleep(REQUEST_PAUSE_SECONDS)
 
-    long_video["generated_image_files"] = (
-        generated_files
-    )
+    long_video["generated_image_files"] = generated_files
 
     return generated_files, used_models
 
@@ -645,18 +618,14 @@ def main() -> None:
     story = load_story(story_path)
     client = get_client()
 
-    short_files, short_models = (
-        generate_short_images(
-            client=client,
-            story=story,
-        )
+    short_files, short_models = generate_short_images(
+        client=client,
+        story=story,
     )
 
-    long_files, long_models = (
-        generate_long_images(
-            client=client,
-            story=story,
-        )
+    long_files, long_models = generate_long_images(
+        client=client,
+        story=story,
     )
 
     update_story_file(
@@ -668,12 +637,8 @@ def main() -> None:
     )
 
     print("----------------------------------------")
-    print(
-        f"{len(short_files)} Short images ready hain."
-    )
-    print(
-        f"{len(long_files)} Long images ready hain."
-    )
+    print(f"{len(short_files)} Short images ready hain.")
+    print(f"{len(long_files)} Long images ready hain.")
     print(f"Updated story file: {story_path}")
     print("----------------------------------------")
 
