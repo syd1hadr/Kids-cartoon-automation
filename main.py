@@ -7,6 +7,11 @@ from typing import Any
 from google import genai
 from google.genai import types
 
+from topic_manager import (
+    choose_topic,
+    reserve_topic,
+)
+
 
 MODEL_CANDIDATES = [
     "gemini-2.5-flash",
@@ -37,16 +42,18 @@ def load_trend_data() -> dict[str, Any]:
     if not trend_path.exists():
         print(
             "Warning: output/trend.json nahi mili. "
-            "Fallback topic use hoga."
+            "Topic manager apna unique topic select karega."
         )
+
         return {
-            "selected_topic": "Colors Learning Song",
+            "selected_topic": "",
             "selected_score": 0,
             "topic_rankings": [],
             "copyright_rule": (
                 "Create completely original lyrics, melody direction, "
                 "story and visuals."
             ),
+            "trend_source_available": False,
         }
 
     try:
@@ -64,30 +71,41 @@ def load_trend_data() -> dict[str, Any]:
         )
 
     selected_topic = str(
-        trend_data.get(
-            "selected_topic",
-            "Colors Learning Song",
-        )
+        trend_data.get("selected_topic", "")
     ).strip()
 
-    if not selected_topic:
-        selected_topic = "Colors Learning Song"
-
     trend_data["selected_topic"] = selected_topic
+    trend_data["trend_source_available"] = bool(selected_topic)
 
     return trend_data
 
 
-def create_prompt(
+def select_unique_topic(
     trend_data: dict[str, Any],
-) -> str:
-    selected_topic = str(
-        trend_data.get(
-            "selected_topic",
-            "Colors Learning Song",
-        )
+) -> dict[str, str]:
+    suggested_topic = str(
+        trend_data.get("selected_topic", "")
     ).strip()
 
+    selected = choose_topic(
+        suggested_topic=suggested_topic,
+    )
+
+    print("----------------------------------------")
+    print("Unique topic manager result:")
+    print(f"Trend suggestion: {suggested_topic or 'none'}")
+    print(f"Final topic: {selected['topic']}")
+    print(f"Category: {selected['category']}")
+    print("----------------------------------------")
+
+    return selected
+
+
+def create_prompt(
+    trend_data: dict[str, Any],
+    selected_topic: str,
+    topic_category: str,
+) -> str:
     topic_rankings = trend_data.get(
         "topic_rankings",
         [],
@@ -104,13 +122,24 @@ def create_prompt(
 You are the original preschool song director and learning-content writer
 for an independent cartoon series called "Milo & Friends".
 
-TREND RESEARCH RESULT:
-
-Selected general learning topic:
+FINAL UNIQUE LEARNING TOPIC:
 {selected_topic}
 
-Other general topic signals:
+TOPIC CATEGORY:
+{topic_category}
+
+TREND RESEARCH SIGNALS:
 {ranking_text}
+
+IMPORTANT:
+
+The final topic above was selected by a repeat-blocking topic manager.
+You must create the Short and Long video around exactly this topic.
+
+Do not switch back to ABC Phonics unless the final unique topic itself
+is ABC Phonics.
+
+Do not turn unrelated topics into alphabet lessons.
 
 IMPORTANT COPYRIGHT RULE:
 
@@ -197,7 +226,7 @@ CREATE TWO CONNECTED OUTPUTS:
 1. One 25-second vertical YouTube Short.
 2. One 216-second long nursery-rhyme plan.
 
-Both outputs must teach the same selected topic:
+Both outputs must teach exactly this topic:
 {selected_topic}
 
 SHORT REQUIREMENTS:
@@ -254,6 +283,7 @@ Return ONLY valid JSON using exactly this structure:
 {{
   "story_id": "original-topic-based-id",
   "selected_trend_topic": "{selected_topic}",
+  "topic_category": "{topic_category}",
   "concept": "one simple original learning-song concept",
   "hook": "clear visual hook in the first second",
   "moral": "very short positive learning idea",
@@ -676,20 +706,14 @@ def normalize_youtube_data(
 def validate_and_normalize_story(
     story: dict[str, Any],
     trend_data: dict[str, Any],
+    selected_topic: str,
+    topic_category: str,
 ) -> dict[str, Any]:
     validate_short_scenes(story)
     validate_long_video(story)
 
-    selected_topic = str(
-        trend_data.get(
-            "selected_topic",
-            "Colors Learning Song",
-        )
-    ).strip()
-
-    story["selected_trend_topic"] = (
-        selected_topic
-    )
+    story["selected_trend_topic"] = selected_topic
+    story["topic_category"] = topic_category
 
     story["duration_seconds"] = sum(
         SHORT_SCENE_DURATIONS
@@ -756,6 +780,12 @@ def validate_and_normalize_story(
     )
 
     story["trend_metadata"] = {
+        "suggested_topic": trend_data.get(
+            "selected_topic",
+            "",
+        ),
+        "final_unique_topic": selected_topic,
+        "topic_category": topic_category,
         "selected_score": trend_data.get(
             "selected_score",
             0,
@@ -768,7 +798,7 @@ def validate_and_normalize_story(
             "language",
             "en",
         ),
-        "generated_at": trend_data.get(
+        "trend_generated_at": trend_data.get(
             "generated_at",
         ),
         "copyright_rule": (
@@ -783,10 +813,17 @@ def validate_and_normalize_story(
 
 def generate_story(
     trend_data: dict[str, Any],
+    selected_topic: str,
+    topic_category: str,
 ) -> dict[str, Any]:
     client = get_client()
     errors: list[str] = []
-    prompt = create_prompt(trend_data)
+
+    prompt = create_prompt(
+        trend_data=trend_data,
+        selected_topic=selected_topic,
+        topic_category=topic_category,
+    )
 
     for model_name in MODEL_CANDIDATES:
         try:
@@ -816,6 +853,8 @@ def generate_story(
             story = validate_and_normalize_story(
                 story=story,
                 trend_data=trend_data,
+                selected_topic=selected_topic,
+                topic_category=topic_category,
             )
 
             story["gemini_model"] = model_name
@@ -904,29 +943,43 @@ def save_story(
 
 def main() -> None:
     print(
-        "Milo & Friends Trend Nursery Brain "
+        "Milo & Friends Unique Topic Nursery Brain "
         "start ho raha hai..."
     )
 
     trend_data = load_trend_data()
 
-    print(
-        "Selected trend topic: "
-        f"{trend_data['selected_topic']}"
+    selected = select_unique_topic(
+        trend_data=trend_data,
     )
 
+    selected_topic = selected["topic"]
+    topic_category = selected["category"]
+
     story = generate_story(
-        trend_data=trend_data
+        trend_data=trend_data,
+        selected_topic=selected_topic,
+        topic_category=topic_category,
     )
 
     output_path = save_story(story)
 
+    reserve_topic(
+        selected=selected,
+        source=(
+            "trend_suggestion"
+            if trend_data.get(
+                "trend_source_available",
+                False,
+            )
+            else "topic_pool"
+        ),
+    )
+
     print("----------------------------------------")
     print("Nursery rhyme planning successfully generated.")
-    print(
-        "Topic: "
-        f"{story['selected_trend_topic']}"
-    )
+    print(f"Topic: {story['selected_trend_topic']}")
+    print(f"Category: {story['topic_category']}")
     print(
         "Short song: "
         f"{story.get('song_title', 'Milo Song')}"
