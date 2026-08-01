@@ -488,7 +488,7 @@ def generate_short_images(
 
         output_path = (
             short_dir
-            / f"scene_{scene_number:02d}.png"
+            / f"scene_{scene_number:02d}.jpg"
         )
 
         image_bytes, model_name = (
@@ -567,7 +567,7 @@ def generate_long_images(
 
         output_path = (
             long_dir
-            / f"segment_{segment_number:02d}.png"
+            / f"segment_{segment_number:02d}.jpg"
         )
 
         image_bytes, model_name = (
