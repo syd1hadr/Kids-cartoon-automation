@@ -85,7 +85,7 @@ jobs:
       - name: Generate Short and Long videos
         run: |
           python video_generator.py
-
+          
       - name: Upload Short and Long automatically to YouTube
         env:
           YOUTUBE_CREDENTIALS_B64: ${{ secrets.YOUTUBE_CREDENTIALS_B64 }}
@@ -111,3 +111,6 @@ jobs:
             trend_history.json
           if-no-files-found: warn
           retention-days: 7
+
+
+          
