@@ -111,6 +111,3 @@ jobs:
             trend_history.json
           if-no-files-found: warn
           retention-days: 7
-
-
-          
