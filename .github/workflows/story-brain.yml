@@ -69,12 +69,23 @@ jobs:
         run: |
           python main.py
 
-      - name: Generate Short and Long images
+      - name: Generate Short and Long reference images
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: |
           python image_generator.py
+
+      - name: Generate real Veo animated clips
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          VEO_MODEL: veo-3.1-fast-generate-preview
+          VEO_RESOLUTION: 720p
+          VEO_MAX_WAIT_SECONDS: 1200
+          VEO_MAX_RETRIES: 2
+          GENERATE_LONG_MOTION: "false"
+        run: |
+          python motion_generator.py
 
       - name: Generate proper Short and Long nursery songs
         env:
