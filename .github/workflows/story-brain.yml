@@ -65,6 +65,7 @@ jobs:
       - name: Generate unique trend-based nursery rhyme
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           python main.py
 
@@ -85,7 +86,7 @@ jobs:
       - name: Generate Short and Long videos
         run: |
           python video_generator.py
-          
+
       - name: Upload Short and Long automatically to YouTube
         env:
           YOUTUBE_CREDENTIALS_B64: ${{ secrets.YOUTUBE_CREDENTIALS_B64 }}
