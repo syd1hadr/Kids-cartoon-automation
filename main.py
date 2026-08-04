@@ -4,8 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from google import genai
-from google.genai import types
+from anthropic import Anthropic
 
 from topic_manager import (
     choose_topic,
@@ -14,9 +13,11 @@ from topic_manager import (
 
 
 MODEL_CANDIDATES = [
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-flash-latest",
+    os.getenv(
+        "CLAUDE_MODEL",
+        "claude-sonnet-5",
+    ).strip(),
+    "claude-haiku-4-5",
 ]
 
 SHORT_SCENE_DURATIONS = [4, 4, 4, 4, 4, 5]
@@ -27,13 +28,22 @@ LONG_SEGMENT_COUNT = 12
 LONG_DURATION_SECONDS = sum(LONG_SEGMENT_DURATIONS)
 
 
-def get_client() -> genai.Client:
-    api_key = os.getenv("GOOGLE_API_KEY", "").strip()
+def get_client() -> Anthropic:
+    api_key = os.getenv(
+        "ANTHROPIC_API_KEY",
+        "",
+    ).strip()
 
     if not api_key:
-        raise RuntimeError("GOOGLE_API_KEY missing hai.")
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY GitHub secret missing hai."
+        )
 
-    return genai.Client(api_key=api_key)
+    return Anthropic(
+        api_key=api_key,
+        max_retries=2,
+        timeout=180.0,
+    )
 
 
 def load_trend_data() -> dict[str, Any]:
@@ -58,7 +68,9 @@ def load_trend_data() -> dict[str, Any]:
 
     try:
         trend_data = json.loads(
-            trend_path.read_text(encoding="utf-8")
+            trend_path.read_text(
+                encoding="utf-8",
+            )
         )
     except json.JSONDecodeError as error:
         raise RuntimeError(
@@ -71,11 +83,16 @@ def load_trend_data() -> dict[str, Any]:
         )
 
     selected_topic = str(
-        trend_data.get("selected_topic", "")
+        trend_data.get(
+            "selected_topic",
+            "",
+        )
     ).strip()
 
     trend_data["selected_topic"] = selected_topic
-    trend_data["trend_source_available"] = bool(selected_topic)
+    trend_data["trend_source_available"] = bool(
+        selected_topic
+    )
 
     return trend_data
 
@@ -84,7 +101,10 @@ def select_unique_topic(
     trend_data: dict[str, Any],
 ) -> dict[str, str]:
     suggested_topic = str(
-        trend_data.get("selected_topic", "")
+        trend_data.get(
+            "selected_topic",
+            "",
+        )
     ).strip()
 
     selected = choose_topic(
@@ -93,7 +113,10 @@ def select_unique_topic(
 
     print("----------------------------------------")
     print("Unique topic manager result:")
-    print(f"Trend suggestion: {suggested_topic or 'none'}")
+    print(
+        f"Trend suggestion: "
+        f"{suggested_topic or 'none'}"
+    )
     print(f"Final topic: {selected['topic']}")
     print(f"Category: {selected['category']}")
     print("----------------------------------------")
@@ -215,11 +238,27 @@ VISUAL QUALITY RULES:
 - clean and uncluttered backgrounds
 - clear visible learning action
 - expressive faces
-- no text inside generated images
+- no text inside generated visuals
 - no subtitles
 - no logos
 - no watermarks
 - no copyrighted characters
+
+ANIMATION REQUIREMENTS:
+
+- This is not a static slideshow.
+- Every scene must describe continuous real character animation.
+- Characters must walk, dance, jump, clap, point or interact naturally.
+- Include facial expressions and eye movement.
+- Include natural head, hand, paw and body movement.
+- Include clear camera movement when useful.
+- Keep character identity and clothing consistent.
+- Scene directions must be suitable for animated video generation.
+- Never describe a still photograph.
+- Never request simple image zooming as the main movement.
+- Every scene must have a clear beginning action and ending action.
+- Short scenes should connect smoothly.
+- The final Short scene should loop naturally into scene one.
 
 CREATE TWO CONNECTED OUTPUTS:
 
@@ -238,7 +277,7 @@ SHORT REQUIREMENTS:
 - immediate visual hook
 - one easy lyric line per scene
 - maximum 8 words per lyric line
-- visible movement in every scene
+- visible animated movement in every scene
 - actions such as clap, point, jump, dance, count, match or repeat
 - one catchy two-line chorus
 - joyful complete ending
@@ -261,7 +300,7 @@ LONG VIDEO REQUIREMENTS:
 - no scary problem
 - no adult lecture
 - no static slideshow direction
-- every segment must describe character movement
+- every segment must describe continuous character animation
 
 MUSIC DIRECTION:
 
@@ -285,7 +324,7 @@ Return ONLY valid JSON using exactly this structure:
   "selected_trend_topic": "{selected_topic}",
   "topic_category": "{topic_category}",
   "concept": "one simple original learning-song concept",
-  "hook": "clear visual hook in the first second",
+  "hook": "clear animated visual hook in the first second",
   "moral": "very short positive learning idea",
   "duration_seconds": 25,
   "characters_used": ["Milo", "Coco"],
@@ -307,13 +346,15 @@ Return ONLY valid JSON using exactly this structure:
     {{
       "scene_number": 1,
       "duration_seconds": 4,
-      "action": "clear physical action",
+      "action": "clear continuous physical action",
       "learning_goal": "small learning goal",
       "emotion": "simple emotion",
       "narration": "short singable lyric",
       "lyric": "same short singable lyric",
       "sound_effects": ["simple sound"],
-      "visual_prompt": "complete original premium 3D scene description"
+      "camera_motion": "simple animated camera movement",
+      "animation_prompt": "complete continuous animation direction",
+      "visual_prompt": "complete original premium 3D animated scene description"
     }}
   ],
   "long_video": {{
@@ -342,12 +383,14 @@ Return ONLY valid JSON using exactly this structure:
           "short singable line four"
         ],
         "actions": [
-          "clear movement one",
-          "clear movement two"
+          "clear continuous movement one",
+          "clear continuous movement two"
         ],
         "sound_effects": [
           "simple sound"
         ],
+        "camera_motion": "natural animated camera direction",
+        "animation_prompt": "complete continuous animation direction",
         "visual_direction": "animated scene direction with natural movement"
       }}
     ],
@@ -388,15 +431,50 @@ STRICT RULES:
 - Lyric and narration must be identical.
 - Every Short lyric must contain 8 words or fewer.
 - Every long-video lyric line should contain 3 to 9 words.
-- Every scene and segment must include visible movement.
+- Every scene and segment must include visible continuous animation.
+- Every Short scene must include animation_prompt.
+- Every Short scene must include camera_motion.
+- Every long segment must include animation_prompt.
+- Every long segment must include camera_motion.
 - Every visual description must specify natural anatomy.
-- Repeat the full appearance and clothing of characters shown.
+- Repeat full appearance and clothing of characters shown.
 - Use only Milo, Coco, Poko and Ducky.
 - Create original learning content.
 - Do not mention any existing brand or channel.
 - Do not return Markdown.
 - Return only JSON.
 """.strip()
+
+
+def extract_text_from_response(
+    response: Any,
+) -> str:
+    text_parts: list[str] = []
+
+    for block in response.content:
+        block_type = getattr(
+            block,
+            "type",
+            "",
+        )
+
+        if block_type != "text":
+            continue
+
+        block_text = getattr(
+            block,
+            "text",
+            "",
+        )
+
+        if block_text:
+            text_parts.append(
+                str(block_text)
+            )
+
+    return "\n".join(
+        text_parts
+    ).strip()
 
 
 def clean_json(
@@ -412,16 +490,30 @@ def clean_json(
     if cleaned.endswith("```"):
         cleaned = cleaned[:-3].strip()
 
+    first_brace = cleaned.find("{")
+    last_brace = cleaned.rfind("}")
+
+    if (
+        first_brace >= 0
+        and last_brace > first_brace
+    ):
+        cleaned = cleaned[
+            first_brace:last_brace + 1
+        ]
+
     try:
         parsed = json.loads(cleaned)
     except json.JSONDecodeError as error:
+        preview = cleaned[:500]
+
         raise RuntimeError(
-            f"Gemini ka JSON invalid hai: {error}"
+            "Claude ka JSON invalid hai: "
+            f"{error}. Response preview: {preview}"
         ) from error
 
     if not isinstance(parsed, dict):
         raise RuntimeError(
-            "Gemini response JSON object nahi hai."
+            "Claude response JSON object nahi hai."
         )
 
     return parsed
@@ -484,11 +576,31 @@ def validate_short_scenes(
         scene["narration"] = lyric
 
         action = normalize_text(
-            scene.get("action", "")
+            scene.get(
+                "action",
+                "",
+            )
         )
 
         visual_prompt = normalize_text(
-            scene.get("visual_prompt", "")
+            scene.get(
+                "visual_prompt",
+                "",
+            )
+        )
+
+        animation_prompt = normalize_text(
+            scene.get(
+                "animation_prompt",
+                "",
+            )
+        )
+
+        camera_motion = normalize_text(
+            scene.get(
+                "camera_motion",
+                "",
+            )
         )
 
         if not action:
@@ -502,24 +614,52 @@ def validate_short_scenes(
                 "visual_prompt missing hai."
             )
 
+        if not animation_prompt:
+            animation_prompt = (
+                f"{action}. The characters move continuously "
+                "with natural body movement, facial expressions, "
+                "eye movement and correct anatomy."
+            )
+
+        if not camera_motion:
+            camera_motion = (
+                "gentle cinematic tracking movement"
+            )
+
         scene["action"] = action
         scene["visual_prompt"] = visual_prompt
+        scene["animation_prompt"] = (
+            animation_prompt
+        )
+        scene["camera_motion"] = (
+            camera_motion
+        )
 
         learning_goal = normalize_text(
-            scene.get("learning_goal", "")
+            scene.get(
+                "learning_goal",
+                "",
+            )
         )
 
         if not learning_goal:
-            learning_goal = "follow the song action"
+            learning_goal = (
+                "follow the song action"
+            )
 
-        scene["learning_goal"] = learning_goal
+        scene["learning_goal"] = (
+            learning_goal
+        )
 
         sound_effects = scene.get(
             "sound_effects",
             [],
         )
 
-        if not isinstance(sound_effects, list):
+        if not isinstance(
+            sound_effects,
+            list,
+        ):
             sound_effects = []
 
         scene["sound_effects"] = [
@@ -532,14 +672,18 @@ def validate_short_scenes(
 def validate_long_video(
     story: dict[str, Any],
 ) -> None:
-    long_video = story.get("long_video")
+    long_video = story.get(
+        "long_video"
+    )
 
     if not isinstance(long_video, dict):
         raise RuntimeError(
             "long_video planning missing hai."
         )
 
-    segments = long_video.get("segments")
+    segments = long_video.get(
+        "segments"
+    )
 
     if not isinstance(segments, list):
         raise RuntimeError(
@@ -552,7 +696,9 @@ def validate_long_video(
             f"expected thay, lekin {len(segments)} mile."
         )
 
-    for index, segment in enumerate(segments):
+    for index, segment in enumerate(
+        segments
+    ):
         if not isinstance(segment, dict):
             raise RuntimeError(
                 f"Long segment {index + 1} valid object nahi hai."
@@ -560,12 +706,17 @@ def validate_long_video(
 
         segment_number = index + 1
 
-        segment["segment_number"] = segment_number
+        segment["segment_number"] = (
+            segment_number
+        )
         segment["duration_seconds"] = (
             LONG_SEGMENT_DURATIONS[index]
         )
 
-        lyrics = segment.get("lyrics", [])
+        lyrics = segment.get(
+            "lyrics",
+            [],
+        )
 
         if not isinstance(lyrics, list):
             lyrics = []
@@ -582,9 +733,14 @@ def validate_long_video(
                 "kam az kam 2 lyric lines honi chahiye."
             )
 
-        segment["lyrics"] = cleaned_lyrics[:6]
+        segment["lyrics"] = (
+            cleaned_lyrics[:6]
+        )
 
-        actions = segment.get("actions", [])
+        actions = segment.get(
+            "actions",
+            [],
+        )
 
         if not isinstance(actions, list):
             actions = []
@@ -601,10 +757,29 @@ def validate_long_video(
                 "movement actions missing hain."
             )
 
-        segment["actions"] = cleaned_actions[:4]
+        segment["actions"] = (
+            cleaned_actions[:4]
+        )
 
         visual_direction = normalize_text(
-            segment.get("visual_direction", "")
+            segment.get(
+                "visual_direction",
+                "",
+            )
+        )
+
+        animation_prompt = normalize_text(
+            segment.get(
+                "animation_prompt",
+                "",
+            )
+        )
+
+        camera_motion = normalize_text(
+            segment.get(
+                "camera_motion",
+                "",
+            )
         )
 
         if not visual_direction:
@@ -613,12 +788,31 @@ def validate_long_video(
                 "visual_direction missing hai."
             )
 
-        segment["visual_direction"] = visual_direction
+        if not animation_prompt:
+            animation_prompt = (
+                f"{visual_direction}. Characters move continuously "
+                "with natural walking, dancing, gestures, facial "
+                "expressions and correct anatomy."
+            )
+
+        if not camera_motion:
+            camera_motion = (
+                "smooth preschool cinematic camera movement"
+            )
+
+        segment["visual_direction"] = (
+            visual_direction
+        )
+        segment["animation_prompt"] = (
+            animation_prompt
+        )
+        segment["camera_motion"] = (
+            camera_motion
+        )
 
     long_video["duration_seconds"] = (
         LONG_DURATION_SECONDS
     )
-
     long_video["format"] = "16:9"
 
 
@@ -627,7 +821,10 @@ def normalize_youtube_data(
     *,
     is_short: bool,
 ) -> dict[str, Any]:
-    if not isinstance(youtube_data, dict):
+    if not isinstance(
+        youtube_data,
+        dict,
+    ):
         youtube_data = {}
 
     default_title = (
@@ -637,20 +834,30 @@ def normalize_youtube_data(
     )
 
     title = normalize_text(
-        youtube_data.get("title", default_title)
+        youtube_data.get(
+            "title",
+            default_title,
+        )
     )
 
-    title_limit = 70 if is_short else 90
+    title_limit = (
+        70 if is_short else 90
+    )
 
     youtube_data["title"] = (
         title or default_title
     )[:title_limit]
 
     description = normalize_text(
-        youtube_data.get("description", "")
+        youtube_data.get(
+            "description",
+            "",
+        )
     )
 
-    youtube_data["description"] = description
+    youtube_data["description"] = (
+        description
+    )
 
     hashtags = youtube_data.get(
         "hashtags",
@@ -678,20 +885,30 @@ def normalize_youtube_data(
 
     final_hashtags: list[str] = []
 
-    for hashtag in hashtags + required_hashtags:
+    for hashtag in (
+        hashtags + required_hashtags
+    ):
         cleaned_hashtag = normalize_text(
             hashtag
-        ).replace(" ", "")
+        ).replace(
+            " ",
+            "",
+        )
 
         if not cleaned_hashtag:
             continue
 
-        if not cleaned_hashtag.startswith("#"):
+        if not cleaned_hashtag.startswith(
+            "#"
+        ):
             cleaned_hashtag = (
                 "#" + cleaned_hashtag
             )
 
-        if cleaned_hashtag not in final_hashtags:
+        if (
+            cleaned_hashtag
+            not in final_hashtags
+        ):
             final_hashtags.append(
                 cleaned_hashtag
             )
@@ -712,8 +929,12 @@ def validate_and_normalize_story(
     validate_short_scenes(story)
     validate_long_video(story)
 
-    story["selected_trend_topic"] = selected_topic
-    story["topic_category"] = topic_category
+    story["selected_trend_topic"] = (
+        selected_topic
+    )
+    story["topic_category"] = (
+        topic_category
+    )
 
     story["duration_seconds"] = sum(
         SHORT_SCENE_DURATIONS
@@ -723,7 +944,10 @@ def validate_and_normalize_story(
         "preschool_learning_rhyme"
     )
 
-    chorus = story.get("chorus", [])
+    chorus = story.get(
+        "chorus",
+        [],
+    )
 
     if not isinstance(chorus, list):
         chorus = []
@@ -736,12 +960,15 @@ def validate_and_normalize_story(
 
     if not cleaned_chorus:
         scenes = story["scenes"]
+
         cleaned_chorus = [
             scenes[0]["lyric"],
             scenes[-1]["lyric"],
         ]
 
-    story["chorus"] = cleaned_chorus[:2]
+    story["chorus"] = (
+        cleaned_chorus[:2]
+    )
 
     music = story.get("music")
 
@@ -756,7 +983,9 @@ def validate_and_normalize_story(
                 "drums and hand claps"
             ),
             "bpm": 110,
-            "mood": "playful and educational",
+            "mood": (
+                "playful and educational"
+            ),
             "vocals_required": True,
             "instrumental_only": False,
             "copyrighted_melody": False,
@@ -765,9 +994,11 @@ def validate_and_normalize_story(
 
     story["music"] = music
 
-    story["youtube"] = normalize_youtube_data(
-        story.get("youtube"),
-        is_short=True,
+    story["youtube"] = (
+        normalize_youtube_data(
+            story.get("youtube"),
+            is_short=True,
+        )
     )
 
     long_video = story["long_video"]
@@ -825,39 +1056,90 @@ def generate_story(
         topic_category=topic_category,
     )
 
-    for model_name in MODEL_CANDIDATES:
-        try:
-            print(f"Trying model: {model_name}")
+    system_prompt = """
+You are the senior creative director and structured-output engine for
+Milo & Friends, an original premium preschool 3D animation channel.
 
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type=(
-                        "application/json"
-                    ),
-                    temperature=0.82,
-                    max_output_tokens=16384,
-                ),
+Create catchy, safe and age-appropriate nursery-rhyme plans with:
+- powerful first-second hooks
+- simple educational lyrics
+- continuous animated character movement
+- consistent character appearance
+- production-ready animation directions
+- natural camera motion
+- original music direction
+- strict valid JSON output
+
+Follow the requested JSON structure exactly.
+
+Return only one valid JSON object.
+
+Never return:
+- Markdown
+- code fences
+- commentary before JSON
+- commentary after JSON
+- copyrighted lyrics
+- copyrighted melodies
+- existing cartoon characters
+- unsafe content
+""".strip()
+
+    for model_name in MODEL_CANDIDATES:
+        if not model_name:
+            continue
+
+        try:
+            print(
+                f"Trying Claude model: "
+                f"{model_name}"
             )
 
-            response_text = response.text
+            response = (
+                client.messages.create(
+                    model=model_name,
+                    system=system_prompt,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": prompt,
+                        }
+                    ],
+                    temperature=0.72,
+                    max_tokens=20000,
+                )
+            )
+
+            response_text = (
+                extract_text_from_response(
+                    response
+                )
+            )
 
             if not response_text:
                 raise RuntimeError(
-                    "Gemini ne empty response diya."
+                    "Claude ne empty response diya."
                 )
 
-            story = clean_json(response_text)
-
-            story = validate_and_normalize_story(
-                story=story,
-                trend_data=trend_data,
-                selected_topic=selected_topic,
-                topic_category=topic_category,
+            story = clean_json(
+                response_text
             )
 
-            story["gemini_model"] = model_name
+            story = (
+                validate_and_normalize_story(
+                    story=story,
+                    trend_data=trend_data,
+                    selected_topic=selected_topic,
+                    topic_category=topic_category,
+                )
+            )
+
+            story["ai_provider"] = (
+                "anthropic"
+            )
+            story["claude_model"] = (
+                model_name
+            )
             story["generated_at"] = (
                 datetime.now(
                     timezone.utc
@@ -865,13 +1147,17 @@ def generate_story(
             )
 
             print(
-                f"Success with model: {model_name}"
+                f"Success with Claude model: "
+                f"{model_name}"
             )
 
             return story
 
         except Exception as error:
-            print(f"Model failed: {model_name}")
+            print(
+                f"Claude model failed: "
+                f"{model_name}"
+            )
             print(error)
 
             errors.append(
@@ -879,7 +1165,7 @@ def generate_story(
             )
 
     raise RuntimeError(
-        "Sab Gemini models fail ho gaye: "
+        "Sab Claude models fail ho gaye: "
         + " | ".join(errors)
     )
 
@@ -889,13 +1175,17 @@ def safe_story_name(
 ) -> str:
     safe_name = "".join(
         character
-        if character.isalnum()
-        or character in "-_"
+        if (
+            character.isalnum()
+            or character in "-_"
+        )
         else "-"
         for character in story_id.lower()
     )
 
-    safe_name = safe_name.strip("-_")
+    safe_name = safe_name.strip(
+        "-_"
+    )
 
     return safe_name or "milo-rhyme"
 
@@ -923,7 +1213,9 @@ def save_story(
 
     timestamp = datetime.now(
         timezone.utc
-    ).strftime("%Y%m%d-%H%M%S")
+    ).strftime(
+        "%Y%m%d-%H%M%S"
+    )
 
     output_path = output_dir / (
         f"{timestamp}-{safe_name}.json"
@@ -943,7 +1235,7 @@ def save_story(
 
 def main() -> None:
     print(
-        "Milo & Friends Unique Topic Nursery Brain "
+        "Milo & Friends Claude Nursery Brain "
         "start ho raha hai..."
     )
 
@@ -962,7 +1254,9 @@ def main() -> None:
         topic_category=topic_category,
     )
 
-    output_path = save_story(story)
+    output_path = save_story(
+        story
+    )
 
     reserve_topic(
         selected=selected,
@@ -977,9 +1271,18 @@ def main() -> None:
     )
 
     print("----------------------------------------")
-    print("Nursery rhyme planning successfully generated.")
-    print(f"Topic: {story['selected_trend_topic']}")
-    print(f"Category: {story['topic_category']}")
+    print(
+        "Claude nursery-rhyme planning "
+        "successfully generated."
+    )
+    print(
+        f"Topic: "
+        f"{story['selected_trend_topic']}"
+    )
+    print(
+        f"Category: "
+        f"{story['topic_category']}"
+    )
     print(
         "Short song: "
         f"{story.get('song_title', 'Milo Song')}"
@@ -996,7 +1299,13 @@ def main() -> None:
         "Long duration approximately: "
         "3 minutes 36 seconds"
     )
-    print(f"Saved file: {output_path}")
+    print(
+        f"Claude model: "
+        f"{story.get('claude_model', 'unknown')}"
+    )
+    print(
+        f"Saved file: {output_path}"
+    )
     print("----------------------------------------")
 
 
