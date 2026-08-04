@@ -567,9 +567,13 @@ def validate_short_scenes(
             )
 
         if len(lyric.split()) > 8:
-            raise RuntimeError(
-                f"Short scene {scene_number} ki lyric "
-                "8 words se zyada hai."
+            print(
+                f"Warning: Short scene {scene_number} ki lyric "
+                "8 words tak trim ki ja rahi hai."
+            )
+
+            lyric = " ".join(
+                lyric.split()[:8]
             )
 
         scene["lyric"] = lyric
@@ -709,6 +713,7 @@ def validate_long_video(
         segment["segment_number"] = (
             segment_number
         )
+
         segment["duration_seconds"] = (
             LONG_SEGMENT_DURATIONS[index]
         )
@@ -733,9 +738,21 @@ def validate_long_video(
                 "kam az kam 2 lyric lines honi chahiye."
             )
 
-        segment["lyrics"] = (
-            cleaned_lyrics[:6]
-        )
+        final_lyrics: list[str] = []
+
+        for line in cleaned_lyrics[:6]:
+            words = line.split()
+
+            if len(words) > 9:
+                line = " ".join(
+                    words[:9]
+                )
+
+            final_lyrics.append(
+                line
+            )
+
+        segment["lyrics"] = final_lyrics
 
         actions = segment.get(
             "actions",
@@ -803,9 +820,11 @@ def validate_long_video(
         segment["visual_direction"] = (
             visual_direction
         )
+
         segment["animation_prompt"] = (
             animation_prompt
         )
+
         segment["camera_motion"] = (
             camera_motion
         )
@@ -813,6 +832,7 @@ def validate_long_video(
     long_video["duration_seconds"] = (
         LONG_DURATION_SECONDS
     )
+
     long_video["format"] = "16:9"
 
 
@@ -932,6 +952,7 @@ def validate_and_normalize_story(
     story["selected_trend_topic"] = (
         selected_topic
     )
+
     story["topic_category"] = (
         topic_category
     )
@@ -1105,7 +1126,6 @@ Never return:
                             "content": prompt,
                         }
                     ],
-                    temperature=0.72,
                     max_tokens=20000,
                 )
             )
@@ -1137,9 +1157,11 @@ Never return:
             story["ai_provider"] = (
                 "anthropic"
             )
+
             story["claude_model"] = (
                 model_name
             )
+
             story["generated_at"] = (
                 datetime.now(
                     timezone.utc
@@ -1158,6 +1180,7 @@ Never return:
                 f"Claude model failed: "
                 f"{model_name}"
             )
+
             print(error)
 
             errors.append(
@@ -1271,41 +1294,51 @@ def main() -> None:
     )
 
     print("----------------------------------------")
+
     print(
         "Claude nursery-rhyme planning "
         "successfully generated."
     )
+
     print(
         f"Topic: "
         f"{story['selected_trend_topic']}"
     )
+
     print(
         f"Category: "
         f"{story['topic_category']}"
     )
+
     print(
         "Short song: "
         f"{story.get('song_title', 'Milo Song')}"
     )
+
     print(
         "Short duration: "
         f"{story['duration_seconds']} seconds"
     )
+
     print(
         "Long duration: "
         f"{story['long_video']['duration_seconds']} seconds"
     )
+
     print(
         "Long duration approximately: "
         "3 minutes 36 seconds"
     )
+
     print(
         f"Claude model: "
         f"{story.get('claude_model', 'unknown')}"
     )
+
     print(
         f"Saved file: {output_path}"
     )
+
     print("----------------------------------------")
 
 
