@@ -38,7 +38,11 @@ def get_latest_story_file() -> Path:
     if not output_dir.exists():
         raise RuntimeError("output folder nahi mila.")
 
-    story_files = list(output_dir.glob("*.json"))
+    story_files = [
+        path
+        for path in output_dir.glob("*.json")
+        if path.name != "trend.json"
+    ]
 
     if not story_files:
         raise RuntimeError("Story JSON file nahi mili.")
@@ -49,7 +53,9 @@ def get_latest_story_file() -> Path:
     )
 
 
-def load_story(story_path: Path) -> dict[str, Any]:
+def load_story(
+    story_path: Path,
+) -> dict[str, Any]:
     try:
         story = json.loads(
             story_path.read_text(encoding="utf-8")
@@ -119,7 +125,7 @@ def get_credentials() -> Credentials:
 
     if missing_fields:
         raise RuntimeError(
-            "YouTube credentials mein ye fields missing hain: "
+            "YouTube credentials mein fields missing hain: "
             + ", ".join(missing_fields)
         )
 
@@ -146,7 +152,7 @@ def get_credentials() -> Credentials:
     except Exception as error:
         raise RuntimeError(
             "YouTube OAuth credentials refresh nahi ho saken. "
-            "Refresh token ya client details check karo."
+            "Refresh token aur client details check karo."
         ) from error
 
     if not credentials.valid:
@@ -165,7 +171,7 @@ def get_privacy_status() -> str:
 
     if privacy_status not in VALID_PRIVACY_STATUSES:
         print(
-            "Warning: invalid privacy status mila. "
+            "Warning: invalid privacy status. "
             "Private use kiya jayega."
         )
         return "private"
@@ -185,7 +191,9 @@ def create_youtube_client(
 
 
 def clean_text(value: Any) -> str:
-    return " ".join(str(value).strip().split())
+    return " ".join(
+        str(value).strip().split()
+    )
 
 
 def normalize_hashtag(tag: Any) -> str:
@@ -267,6 +275,23 @@ def require_video_file(
     return video_path
 
 
+def find_optional_video_file(
+    path_value: Any,
+    fallback_path: str,
+) -> Path | None:
+    video_path = Path(
+        str(path_value or fallback_path)
+    )
+
+    if not video_path.exists():
+        return None
+
+    if video_path.stat().st_size == 0:
+        return None
+
+    return video_path
+
+
 def get_short_upload_data(
     story: dict[str, Any],
 ) -> dict[str, Any]:
@@ -288,8 +313,6 @@ def get_short_upload_data(
     if "#shorts" not in title.lower():
         title = f"{title} #Shorts"
 
-    title = title[:100]
-
     description = build_description(
         youtube_data=youtube_data,
         required_hashtags=[
@@ -301,16 +324,14 @@ def get_short_upload_data(
     )
 
     video_path = require_video_file(
-        story.get(
-            "short_video_file"
-        )
+        story.get("short_video_file")
         or story.get("video_file"),
         "output/video/final_short.mp4",
     )
 
     return {
         "kind": "short",
-        "title": title,
+        "title": title[:100],
         "description": description,
         "video_path": video_path,
         "category_id": "1",
@@ -319,13 +340,27 @@ def get_short_upload_data(
 
 def get_long_upload_data(
     story: dict[str, Any],
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
     long_data = story.get("long_video", {})
 
     if not isinstance(long_data, dict):
-        raise RuntimeError(
-            "long_video metadata missing hai."
+        print(
+            "Long metadata nahi mili. "
+            "Long upload skip hogi."
         )
+        return None
+
+    video_path = find_optional_video_file(
+        long_data.get("video_file"),
+        "output/video/final_long.mp4",
+    )
+
+    if video_path is None:
+        print(
+            "Animated Long video abhi available nahi hai. "
+            "Long upload safely skip ki ja rahi hai."
+        )
+        return None
 
     youtube_data = long_data.get(
         "youtube",
@@ -348,8 +383,6 @@ def get_long_upload_data(
     if not title:
         title = "Milo & Friends Learning Nursery Rhyme"
 
-    title = title[:100]
-
     description = build_description(
         youtube_data=youtube_data,
         required_hashtags=[
@@ -360,14 +393,9 @@ def get_long_upload_data(
         ],
     )
 
-    video_path = require_video_file(
-        long_data.get("video_file"),
-        "output/video/final_long.mp4",
-    )
-
     return {
         "kind": "long",
-        "title": title,
+        "title": title[:100],
         "description": description,
         "video_path": video_path,
         "category_id": "1",
@@ -451,7 +479,7 @@ def resumable_upload(
         ) as error:
             if retry_count >= MAX_UPLOAD_RETRIES:
                 raise RuntimeError(
-                    f"{label} network retries ke baad bhi fail ho gaya."
+                    f"{label} network retries ke baad fail ho gaya."
                 ) from error
 
             retry_count += 1
@@ -471,7 +499,7 @@ def resumable_upload(
 
     if not isinstance(response, dict):
         raise RuntimeError(
-            f"{label}: YouTube ne valid response return nahi ki."
+            f"{label}: YouTube ne valid response nahi diya."
         )
 
     return response
@@ -504,7 +532,7 @@ def upload_one_video(
     )
 
     print("----------------------------------------")
-    print(f"{label} YouTube upload start ho raha hai...")
+    print(f"{label} YouTube upload start...")
     print(f"Video file: {upload_data['video_path']}")
     print(f"Title: {upload_data['title']}")
     print(f"Privacy: {privacy_status}")
@@ -546,18 +574,27 @@ def already_uploaded(
     if kind == "short":
         return bool(
             clean_text(
-                story.get("youtube_short_video_id", "")
+                story.get(
+                    "youtube_short_video_id",
+                    "",
+                )
             )
         )
 
-    long_data = story.get("long_video", {})
+    long_data = story.get(
+        "long_video",
+        {},
+    )
 
     if not isinstance(long_data, dict):
         return False
 
     return bool(
         clean_text(
-            long_data.get("youtube_video_id", "")
+            long_data.get(
+                "youtube_video_id",
+                "",
+            )
         )
     )
 
@@ -565,29 +602,30 @@ def already_uploaded(
 def update_story_metadata(
     story: dict[str, Any],
     story_path: Path,
-    short_result: dict[str, str],
-    long_result: dict[str, str],
+    short_result: dict[str, str] | None,
+    long_result: dict[str, str] | None,
     privacy_status: str,
 ) -> None:
-    story["youtube_short_video_id"] = (
-        short_result["video_id"]
-    )
+    if short_result is not None:
+        story["youtube_short_video_id"] = (
+            short_result["video_id"]
+        )
 
-    story["youtube_short_video_url"] = (
-        short_result["video_url"]
-    )
+        story["youtube_short_video_url"] = (
+            short_result["video_url"]
+        )
 
-    story["youtube_video_id"] = (
-        short_result["video_id"]
-    )
+        story["youtube_video_id"] = (
+            short_result["video_id"]
+        )
 
-    story["youtube_video_url"] = (
-        short_result["video_url"]
-    )
+        story["youtube_video_url"] = (
+            short_result["video_url"]
+        )
 
-    story["youtube_short_upload_status"] = (
-        "uploaded"
-    )
+        story["youtube_short_upload_status"] = (
+            "uploaded"
+        )
 
     long_data = story.get("long_video")
 
@@ -595,21 +633,39 @@ def update_story_metadata(
         long_data = {}
         story["long_video"] = long_data
 
-    long_data["youtube_video_id"] = (
-        long_result["video_id"]
-    )
+    if long_result is not None:
+        long_data["youtube_video_id"] = (
+            long_result["video_id"]
+        )
 
-    long_data["youtube_video_url"] = (
-        long_result["video_url"]
-    )
+        long_data["youtube_video_url"] = (
+            long_result["video_url"]
+        )
 
-    long_data["youtube_upload_status"] = (
-        "uploaded"
-    )
+        long_data["youtube_upload_status"] = (
+            "uploaded"
+        )
+    else:
+        long_data["youtube_upload_status"] = (
+            "skipped_no_animated_long_video"
+        )
 
-    story["youtube_upload_status"] = (
-        "short_and_long_uploaded"
-    )
+    if short_result and long_result:
+        story["youtube_upload_status"] = (
+            "short_and_long_uploaded"
+        )
+    elif short_result:
+        story["youtube_upload_status"] = (
+            "animated_short_uploaded"
+        )
+    elif long_result:
+        story["youtube_upload_status"] = (
+            "long_uploaded"
+        )
+    else:
+        story["youtube_upload_status"] = (
+            "nothing_new_to_upload"
+        )
 
     story["youtube_privacy_status"] = (
         privacy_status
@@ -629,8 +685,8 @@ def update_story_metadata(
 
 def main() -> None:
     print(
-        "Milo & Friends Short and Long YouTube uploader "
-        "start ho raha hai..."
+        "Milo & Friends optional Short and Long "
+        "YouTube uploader start..."
     )
 
     story_path = get_latest_story_file()
@@ -638,43 +694,72 @@ def main() -> None:
 
     story = load_story(story_path)
 
-    if already_uploaded(story, "short"):
-        raise RuntimeError(
-            "Is story ka Short pehle hi upload ho chuka hai. "
-            "Duplicate upload rok diya gaya."
+    short_already_uploaded = already_uploaded(
+        story,
+        "short",
+    )
+
+    long_already_uploaded = already_uploaded(
+        story,
+        "long",
+    )
+
+    short_upload_data = None
+    long_upload_data = None
+
+    if short_already_uploaded:
+        print(
+            "Short pehle upload ho chuki hai. "
+            "Duplicate Short skip hogi."
+        )
+    else:
+        short_upload_data = get_short_upload_data(
+            story
         )
 
-    if already_uploaded(story, "long"):
-        raise RuntimeError(
-            "Is story ki Long video pehle hi upload ho chuki hai. "
-            "Duplicate upload rok diya gaya."
+    if long_already_uploaded:
+        print(
+            "Long pehle upload ho chuki hai. "
+            "Duplicate Long skip hogi."
         )
+    else:
+        long_upload_data = get_long_upload_data(
+            story
+        )
+
+    if (
+        short_upload_data is None
+        and long_upload_data is None
+    ):
+        print(
+            "Koi nayi video upload ke liye available nahi hai."
+        )
+        return
 
     credentials = get_credentials()
+
     youtube = create_youtube_client(
         credentials
     )
+
     privacy_status = get_privacy_status()
 
-    short_upload_data = get_short_upload_data(
-        story
-    )
+    short_result = None
+    long_result = None
 
-    long_upload_data = get_long_upload_data(
-        story
-    )
+    if short_upload_data is not None:
+        short_result = upload_one_video(
+            youtube=youtube,
+            upload_data=short_upload_data,
+            privacy_status=privacy_status,
+        )
 
-    short_result = upload_one_video(
-        youtube=youtube,
-        upload_data=short_upload_data,
-        privacy_status=privacy_status,
-    )
-
-    long_result = upload_one_video(
-        youtube=youtube,
-        upload_data=long_upload_data,
-        privacy_status=privacy_status,
-    )
+    if long_upload_data is not None:
+        long_result = upload_one_video(
+            youtube=youtube,
+            upload_data=long_upload_data,
+            privacy_status=privacy_status,
+        )
 
     update_story_metadata(
         story=story,
@@ -685,15 +770,24 @@ def main() -> None:
     )
 
     print("----------------------------------------")
-    print("Short aur Long dono YouTube par upload ho gayi hain.")
-    print(
-        "Short URL: "
-        f"{short_result['video_url']}"
-    )
-    print(
-        "Long URL: "
-        f"{long_result['video_url']}"
-    )
+
+    if short_result:
+        print(
+            "Animated Short upload successful:"
+        )
+        print(short_result["video_url"])
+
+    if long_result:
+        print(
+            "Animated Long upload successful:"
+        )
+        print(long_result["video_url"])
+    else:
+        print(
+            "Long video available nahi thi, "
+            "is liye safely skip hui."
+        )
+
     print("----------------------------------------")
 
 
