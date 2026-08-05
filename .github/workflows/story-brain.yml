@@ -81,6 +81,7 @@ jobs:
           python tools/blender/blender_runner.py
 
       - name: Generate real Veo animated clips
+        if: ${{ false }}
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           VEO_MODEL: veo-3.1-fast-generate-preview
