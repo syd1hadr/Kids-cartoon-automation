@@ -1,1 +1,22 @@
+name: Blender Test
 
+on:
+  workflow_dispatch:
+
+jobs:
+  blender-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Blender
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender
+
+      - name: Check Blender
+        run: blender --version
+
+      - name: Build Milo Character
+        run: python tools/blender/blender_runner.py
