@@ -10,13 +10,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Blender
+      - name: Install Blender and rendering libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender
+          sudo apt-get install -y \
+            blender \
+            ffmpeg \
+            libegl1 \
+            libgl1 \
+            libglx-mesa0 \
+            libx11-6 \
+            libxext6 \
+            libxi6 \
+            libxrender1 \
+            libsm6
 
       - name: Check Blender
-        run: blender --version
+        run: |
+          blender --version
+          ffmpeg -version
 
       - name: Build Milo Character
-        run: python tools/blender/blender_runner.py
+        run: |
+          python tools/blender/blender_runner.py
