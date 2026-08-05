@@ -1,13 +1,11 @@
-"""
-Render 3D scene placeholder.
-"""
+import bpy
 
-def main():
-    print("Rendering 3D scene...")
-    print("Camera ready")
-    print("Lights ready")
-    print("Rendering complete")
+print("Render Scene Started")
 
+if "Milo_Root" not in bpy.data.objects:
+    raise RuntimeError("Milo_Root not found")
 
-if __name__ == "__main__":
-    main()
+bpy.context.scene.render.engine = "BLENDER_EEVEE"
+
+print("Render engine:", bpy.context.scene.render.engine)
+print("Render validation completed")
