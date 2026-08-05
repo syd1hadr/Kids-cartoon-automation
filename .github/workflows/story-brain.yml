@@ -76,6 +76,10 @@ jobs:
         run: |
           python image_generator.py
 
+      - name: Build Milo in Blender
+        run: |
+          python tools/blender/blender_runner.py
+
       - name: Generate real Veo animated clips
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
