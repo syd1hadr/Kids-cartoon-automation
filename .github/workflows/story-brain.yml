@@ -38,12 +38,23 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install FFmpeg and Blender
+      - name: Install FFmpeg, Blender and rendering libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg blender
-          ffmpeg -version
+          sudo apt-get install -y \
+            blender \
+            ffmpeg \
+            libegl1 \
+            libgl1 \
+            libglx-mesa0 \
+            libx11-6 \
+            libxext6 \
+            libxi6 \
+            libxrender1 \
+            libsm6
+
           blender --version
+          ffmpeg -version
 
       - name: Test Blender background mode
         run: |
