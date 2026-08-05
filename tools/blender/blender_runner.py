@@ -7,11 +7,11 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BLENDER_TOOLS_DIR = PROJECT_ROOT / "tools" / "blender"
 
-BLENDER_SCRIPTS = [
-    BLENDER_TOOLS_DIR / "generate_character.py",
-    BLENDER_TOOLS_DIR / "animate_character.py",
-    BLENDER_TOOLS_DIR / "render_scene.py",
-]
+GENERATE_SCRIPT = BLENDER_TOOLS_DIR / "generate_character.py"
+ANIMATE_SCRIPT = BLENDER_TOOLS_DIR / "animate_character.py"
+RENDER_SCRIPT = BLENDER_TOOLS_DIR / "render_scene.py"
+
+MILO_BLEND_FILE = PROJECT_ROOT / "assets" / "characters" / "milo.blend"
 
 
 def find_blender() -> str:
@@ -38,23 +38,12 @@ def validate_script(script_path: Path) -> None:
         )
 
 
-def run_blender_script(
-    blender_path: str,
-    script_path: Path,
+def run_command(
+    command: list[str],
+    label: str,
 ) -> None:
-    validate_script(script_path)
-
-    command = [
-        blender_path,
-        "--background",
-        "--factory-startup",
-        "--python",
-        str(script_path),
-    ]
-
     print("----------------------------------------")
-    print(f"Running Blender script: {script_path.name}")
-    print("Command:")
+    print(f"Running: {label}")
     print(" ".join(command))
     print("----------------------------------------")
 
@@ -67,12 +56,71 @@ def run_blender_script(
 
     if completed.returncode != 0:
         raise RuntimeError(
-            f"{script_path.name} fail ho gayi. "
+            f"{label} fail ho gaya. "
             f"Exit code: {completed.returncode}"
         )
 
-    print(
-        f"{script_path.name} successfully complete hui."
+    print(f"{label} successfully complete hua.")
+
+
+def generate_milo(
+    blender_path: str,
+) -> None:
+    validate_script(GENERATE_SCRIPT)
+
+    run_command(
+        [
+            blender_path,
+            "--background",
+            "--factory-startup",
+            "--python",
+            str(GENERATE_SCRIPT),
+        ],
+        "Generate Milo character",
+    )
+
+    if not MILO_BLEND_FILE.exists():
+        raise RuntimeError(
+            f"Milo Blender file create nahi hui: {MILO_BLEND_FILE}"
+        )
+
+    if MILO_BLEND_FILE.stat().st_size == 0:
+        raise RuntimeError(
+            f"Milo Blender file empty hai: {MILO_BLEND_FILE}"
+        )
+
+
+def animate_milo(
+    blender_path: str,
+) -> None:
+    validate_script(ANIMATE_SCRIPT)
+
+    run_command(
+        [
+            blender_path,
+            "--background",
+            str(MILO_BLEND_FILE),
+            "--python",
+            str(ANIMATE_SCRIPT),
+        ],
+        "Validate and animate Milo",
+    )
+
+
+def render_milo(
+    blender_path: str,
+) -> None:
+    validate_script(RENDER_SCRIPT)
+
+    run_command(
+        [
+            blender_path,
+            "--background",
+            str(MILO_BLEND_FILE),
+            "--python",
+            str(RENDER_SCRIPT),
+        ],
+        "Validate Milo render scene",
     )
 
 
@@ -86,11 +134,9 @@ def main() -> None:
     print(f"Blender executable: {blender_path}")
     print(f"Project root: {PROJECT_ROOT}")
 
-    for script_path in BLENDER_SCRIPTS:
-        run_blender_script(
-            blender_path=blender_path,
-            script_path=script_path,
-        )
+    generate_milo(blender_path)
+    animate_milo(blender_path)
+    render_milo(blender_path)
 
     print("========================================")
     print("Blender pipeline successfully complete.")
