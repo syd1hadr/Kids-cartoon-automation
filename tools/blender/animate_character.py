@@ -2,6 +2,7 @@ import math
 from pathlib import Path
 
 import bpy
+import mathutils
 
 
 PROJECT_ROOT = Path.cwd()
@@ -23,6 +24,16 @@ def require_milo() -> bpy.types.Object:
     return root
 
 
+def remove_object_by_name(name: str) -> None:
+    obj = bpy.data.objects.get(name)
+
+    if obj is not None:
+        bpy.data.objects.remove(
+            obj,
+            do_unlink=True,
+        )
+
+
 def remove_existing_scene_helpers() -> None:
     helper_names = [
         "AnimationCamera",
@@ -33,13 +44,7 @@ def remove_existing_scene_helpers() -> None:
     ]
 
     for name in helper_names:
-        obj = bpy.data.objects.get(name)
-
-        if obj is not None:
-            bpy.data.objects.remove(
-                obj,
-                do_unlink=True,
-            )
+        remove_object_by_name(name)
 
 
 def create_material(
@@ -49,23 +54,26 @@ def create_material(
     material = bpy.data.materials.get(name)
 
     if material is None:
-        material = bpy.data.materials.new(name=name)
+        material = bpy.data.materials.new(
+            name=name,
+        )
 
     material.diffuse_color = color
     material.use_nodes = True
 
-    principled = material.node_tree.nodes.get(
-        "Principled BSDF"
-    )
+    if material.node_tree is not None:
+        principled = material.node_tree.nodes.get(
+            "Principled BSDF"
+        )
 
-    if principled:
-        principled.inputs[
-            "Base Color"
-        ].default_value = color
+        if principled is not None:
+            principled.inputs[
+                "Base Color"
+            ].default_value = color
 
-        principled.inputs[
-            "Roughness"
-        ].default_value = 0.65
+            principled.inputs[
+                "Roughness"
+            ].default_value = 0.65
 
     return material
 
@@ -81,11 +89,14 @@ def setup_world() -> None:
 
     world.use_nodes = True
 
+    if world.node_tree is None:
+        return
+
     background = world.node_tree.nodes.get(
         "Background"
     )
 
-    if background:
+    if background is not None:
         background.inputs[
             "Color"
         ].default_value = (
@@ -112,22 +123,31 @@ def setup_floor() -> None:
     )
 
     floor = bpy.context.active_object
+
+    if floor is None:
+        raise RuntimeError(
+            "Animation floor create nahi hua."
+        )
+
     floor.name = "AnimationFloor"
     floor.data.materials.append(
         floor_material
     )
 
 
-def point_camera_at(
-    camera: bpy.types.Object,
+def point_object_at(
+    obj: bpy.types.Object,
     target: tuple[float, float, float],
 ) -> None:
-    direction = (
-        mathutils.Vector(target)
-        - camera.location
+    target_vector = mathutils.Vector(
+        target
     )
 
-    camera.rotation_euler = (
+    direction = (
+        target_vector - obj.location
+    )
+
+    obj.rotation_euler = (
         direction.to_track_quat(
             "-Z",
             "Y",
@@ -141,12 +161,18 @@ def setup_camera() -> bpy.types.Object:
     )
 
     camera = bpy.context.active_object
+
+    if camera is None:
+        raise RuntimeError(
+            "Animation camera create nahi hua."
+        )
+
     camera.name = "AnimationCamera"
     camera.data.lens = 52
 
     bpy.context.scene.camera = camera
 
-    point_camera_at(
+    point_object_at(
         camera,
         (0.0, 0.0, 2.15),
     )
@@ -166,54 +192,99 @@ def add_area_light(
     )
 
     light = bpy.context.active_object
+
+    if light is None:
+        raise RuntimeError(
+            f"{name} create nahi hui."
+        )
+
     light.name = name
     light.data.energy = energy
     light.data.shape = "DISK"
     light.data.size = size
 
-    direction = (
-        mathutils.Vector((0.0, 0.0, 2.0))
-        - light.location
-    )
-
-    light.rotation_euler = (
-        direction.to_track_quat(
-            "-Z",
-            "Y",
-        ).to_euler()
+    point_object_at(
+        light,
+        (0.0, 0.0, 2.0),
     )
 
 
 def setup_lighting() -> None:
     add_area_light(
-        "KeyLight",
-        (-4.0, -5.0, 7.0),
-        900,
-        5.0,
+        name="KeyLight",
+        location=(-4.0, -5.0, 7.0),
+        energy=900,
+        size=5.0,
     )
 
     add_area_light(
-        "FillLight",
-        (4.0, -3.0, 5.0),
-        600,
-        4.0,
+        name="FillLight",
+        location=(4.0, -3.0, 5.0),
+        energy=600,
+        size=4.0,
     )
 
     add_area_light(
-        "BackLight",
-        (0.0, 4.0, 6.0),
-        750,
-        3.5,
+        name="BackLight",
+        location=(0.0, 4.0, 6.0),
+        energy=750,
+        size=3.5,
+    )
+
+
+def select_render_engine() -> str:
+    scene = bpy.context.scene
+
+    engine_candidates = [
+        "BLENDER_EEVEE_NEXT",
+        "BLENDER_EEVEE",
+        "CYCLES",
+    ]
+
+    errors: list[str] = []
+
+    for engine_name in engine_candidates:
+        try:
+            scene.render.engine = engine_name
+
+            if scene.render.engine == engine_name:
+                print(
+                    f"Selected render engine: "
+                    f"{engine_name}"
+                )
+
+                return engine_name
+
+        except Exception as error:
+            errors.append(
+                f"{engine_name}: {error}"
+            )
+
+    raise RuntimeError(
+        "Koi compatible render engine select nahi hua: "
+        + " | ".join(errors)
     )
 
 
 def configure_render() -> None:
     scene = bpy.context.scene
 
-    try:
-        scene.render.engine = "BLENDER_EEVEE"
-    except Exception:
-        scene.render.engine = "BLENDER_WORKBENCH"
+    selected_engine = select_render_engine()
+
+    if selected_engine == "BLENDER_EEVEE_NEXT":
+        if hasattr(scene, "eevee"):
+            try:
+                scene.eevee.taa_render_samples = 16
+            except Exception:
+                pass
+
+    if selected_engine == "CYCLES":
+        scene.cycles.samples = 16
+
+        try:
+            scene.cycles.device = "CPU"
+        except Exception:
+            pass
 
     scene.render.resolution_x = WIDTH
     scene.render.resolution_y = HEIGHT
@@ -229,10 +300,31 @@ def configure_render() -> None:
         "MEDIUM"
     )
 
-    scene.render.ffmpeg.audio_codec = "AAC"
+    scene.render.ffmpeg.ffmpeg_preset = (
+        "GOOD"
+    )
 
     scene.render.fps = FPS
+    scene.render.fps_base = 1.0
+
     scene.render.film_transparent = False
+    scene.render.use_file_extension = True
+    scene.render.use_overwrite = True
+    scene.render.use_placeholder = False
+
+    scene.render.image_settings.color_mode = (
+        "RGB"
+    )
+
+    try:
+        scene.render.ffmpeg.audio_codec = "NONE"
+    except Exception:
+        pass
+
+    print(
+        f"Render size: {WIDTH}x{HEIGHT}"
+    )
+    print(f"Render FPS: {FPS}")
 
 
 def clear_animation(
@@ -240,9 +332,23 @@ def clear_animation(
 ) -> None:
     root.animation_data_clear()
 
-    root.location = (0.0, 0.0, 0.0)
-    root.rotation_euler = (0.0, 0.0, 0.0)
-    root.scale = (1.0, 1.0, 1.0)
+    root.location = (
+        0.0,
+        0.0,
+        0.0,
+    )
+
+    root.rotation_euler = (
+        0.0,
+        0.0,
+        0.0,
+    )
+
+    root.scale = (
+        1.0,
+        1.0,
+        1.0,
+    )
 
 
 def insert_transform_keyframe(
@@ -272,6 +378,22 @@ def insert_transform_keyframe(
     )
 
 
+def set_smooth_interpolation(
+    root: bpy.types.Object,
+) -> None:
+    if root.animation_data is None:
+        return
+
+    action = root.animation_data.action
+
+    if action is None:
+        return
+
+    for fcurve in action.fcurves:
+        for point in fcurve.keyframe_points:
+            point.interpolation = "BEZIER"
+
+
 def make_scene_animation(
     root: bpy.types.Object,
     scene_number: int,
@@ -279,10 +401,7 @@ def make_scene_animation(
 ) -> int:
     clear_animation(root)
 
-    total_frames = (
-        duration_seconds * FPS
-    )
-
+    total_frames = duration_seconds * FPS
     middle_frame = max(
         2,
         total_frames // 2,
@@ -290,197 +409,207 @@ def make_scene_animation(
 
     if scene_number == 1:
         insert_transform_keyframe(
-            root,
-            1,
-            (-0.30, 0.0, 0.0),
-            (0.0, 0.0, math.radians(-7)),
-            (0.96, 0.96, 0.96),
+            root=root,
+            frame=1,
+            location=(-0.30, 0.0, 0.0),
+            rotation=(
+                0.0,
+                0.0,
+                math.radians(-7),
+            ),
+            scale=(0.96, 0.96, 0.96),
         )
 
         insert_transform_keyframe(
-            root,
-            middle_frame,
-            (0.20, 0.0, 0.18),
-            (0.0, 0.0, math.radians(8)),
-            (1.05, 1.05, 1.05),
+            root=root,
+            frame=middle_frame,
+            location=(0.20, 0.0, 0.18),
+            rotation=(
+                0.0,
+                0.0,
+                math.radians(8),
+            ),
+            scale=(1.05, 1.05, 1.05),
         )
 
         insert_transform_keyframe(
-            root,
-            total_frames,
-            (0.0, 0.0, 0.0),
-            (0.0, 0.0, 0.0),
-            (1.0, 1.0, 1.0),
+            root=root,
+            frame=total_frames,
+            location=(0.0, 0.0, 0.0),
+            rotation=(0.0, 0.0, 0.0),
+            scale=(1.0, 1.0, 1.0),
         )
 
     elif scene_number == 2:
         insert_transform_keyframe(
-            root,
-            1,
-            (0.0, 0.0, 0.0),
-            (0.0, 0.0, math.radians(-12)),
-            (1.0, 1.0, 1.0),
+            root=root,
+            frame=1,
+            location=(0.0, 0.0, 0.0),
+            rotation=(
+                0.0,
+                0.0,
+                math.radians(-12),
+            ),
+            scale=(1.0, 1.0, 1.0),
         )
 
         insert_transform_keyframe(
-            root,
-            middle_frame,
-            (0.0, 0.0, 0.12),
-            (0.0, 0.0, math.radians(12)),
-            (1.03, 1.03, 1.03),
+            root=root,
+            frame=middle_frame,
+            location=(0.0, 0.0, 0.12),
+            rotation=(
+                0.0,
+                0.0,
+                math.radians(12),
+            ),
+            scale=(1.03, 1.03, 1.03),
         )
 
         insert_transform_keyframe(
-            root,
-            total_frames,
-            (0.0, 0.0, 0.0),
-            (0.0, 0.0, math.radians(-12)),
-            (1.0, 1.0, 1.0),
+            root=root,
+            frame=total_frames,
+            location=(0.0, 0.0, 0.0),
+            rotation=(
+                0.0,
+                0.0,
+                math.radians(-12),
+            ),
+            scale=(1.0, 1.0, 1.0),
         )
 
     elif scene_number == 3:
         insert_transform_keyframe(
-            root,
-            1,
-            (-0.55, 0.0, 0.0),
-            (0.0, 0.0, 0.0),
-            (1.0, 1.0, 1.0),
+            root=root,
+            frame=1,
+            location=(-0.55, 0.0, 0.0),
+            rotation=(0.0, 0.0, 0.0),
+            scale=(1.0, 1.0, 1.0),
         )
 
         insert_transform_keyframe(
-            root,
-            middle_frame,
-            (0.55, 0.0, 0.10),
-            (
+            root=root,
+            frame=middle_frame,
+            location=(0.55, 0.0, 0.10),
+            rotation=(
                 0.0,
                 0.0,
                 math.radians(9),
             ),
-            (1.0, 1.0, 1.0),
+            scale=(1.0, 1.0, 1.0),
         )
 
         insert_transform_keyframe(
-            root,
-            total_frames,
-            (-0.55, 0.0, 0.0),
-            (
+            root=root,
+            frame=total_frames,
+            location=(-0.55, 0.0, 0.0),
+            rotation=(
                 0.0,
                 0.0,
                 math.radians(-9),
             ),
-            (1.0, 1.0, 1.0),
+            scale=(1.0, 1.0, 1.0),
         )
 
     elif scene_number == 4:
         insert_transform_keyframe(
-            root,
-            1,
-            (0.0, 0.0, 0.0),
-            (0.0, 0.0, 0.0),
-            (1.0, 1.0, 1.0),
+            root=root,
+            frame=1,
+            location=(0.0, 0.0, 0.0),
+            rotation=(0.0, 0.0, 0.0),
+            scale=(1.0, 1.0, 1.0),
         )
 
         insert_transform_keyframe(
-            root,
-            middle_frame,
-            (0.0, 0.0, 0.48),
-            (
+            root=root,
+            frame=middle_frame,
+            location=(0.0, 0.0, 0.48),
+            rotation=(
                 math.radians(5),
                 0.0,
                 math.radians(10),
             ),
-            (1.03, 1.03, 1.03),
+            scale=(1.03, 1.03, 1.03),
         )
 
         insert_transform_keyframe(
-            root,
-            total_frames,
-            (0.0, 0.0, 0.0),
-            (0.0, 0.0, 0.0),
-            (1.0, 1.0, 1.0),
+            root=root,
+            frame=total_frames,
+            location=(0.0, 0.0, 0.0),
+            rotation=(0.0, 0.0, 0.0),
+            scale=(1.0, 1.0, 1.0),
         )
 
     elif scene_number == 5:
         insert_transform_keyframe(
-            root,
-            1,
-            (0.0, 0.0, 0.0),
-            (
+            root=root,
+            frame=1,
+            location=(0.0, 0.0, 0.0),
+            rotation=(
                 0.0,
                 math.radians(-10),
                 math.radians(-8),
             ),
-            (1.0, 1.0, 1.0),
+            scale=(1.0, 1.0, 1.0),
         )
 
         insert_transform_keyframe(
-            root,
-            middle_frame,
-            (0.20, 0.0, 0.15),
-            (
+            root=root,
+            frame=middle_frame,
+            location=(0.20, 0.0, 0.15),
+            rotation=(
                 0.0,
                 math.radians(10),
                 math.radians(8),
             ),
-            (1.04, 1.04, 1.04),
+            scale=(1.04, 1.04, 1.04),
         )
 
         insert_transform_keyframe(
-            root,
-            total_frames,
-            (0.0, 0.0, 0.0),
-            (
+            root=root,
+            frame=total_frames,
+            location=(0.0, 0.0, 0.0),
+            rotation=(
                 0.0,
                 math.radians(-10),
                 math.radians(-8),
             ),
-            (1.0, 1.0, 1.0),
+            scale=(1.0, 1.0, 1.0),
         )
 
     else:
         insert_transform_keyframe(
-            root,
-            1,
-            (0.0, 0.0, 0.0),
-            (
+            root=root,
+            frame=1,
+            location=(0.0, 0.0, 0.0),
+            rotation=(
                 0.0,
                 0.0,
                 math.radians(-10),
             ),
-            (0.96, 0.96, 0.96),
+            scale=(0.96, 0.96, 0.96),
         )
 
         insert_transform_keyframe(
-            root,
-            middle_frame,
-            (0.0, 0.0, 0.32),
-            (
+            root=root,
+            frame=middle_frame,
+            location=(0.0, 0.0, 0.32),
+            rotation=(
                 0.0,
                 0.0,
                 math.radians(10),
             ),
-            (1.08, 1.08, 1.08),
+            scale=(1.08, 1.08, 1.08),
         )
 
         insert_transform_keyframe(
-            root,
-            total_frames,
-            (0.0, 0.0, 0.0),
-            (0.0, 0.0, 0.0),
-            (1.0, 1.0, 1.0),
+            root=root,
+            frame=total_frames,
+            location=(0.0, 0.0, 0.0),
+            rotation=(0.0, 0.0, 0.0),
+            scale=(1.0, 1.0, 1.0),
         )
 
-    if root.animation_data:
-        action = root.animation_data.action
-
-        if action:
-            for fcurve in action.fcurves:
-                for point in (
-                    fcurve.keyframe_points
-                ):
-                    point.interpolation = (
-                        "BEZIER"
-                    )
+    set_smooth_interpolation(root)
 
     return total_frames
 
@@ -499,10 +628,14 @@ def render_scene_clip(
     scene = bpy.context.scene
     scene.frame_start = 1
     scene.frame_end = total_frames
+    scene.frame_set(1)
 
     output_path = OUTPUT_DIR / (
         f"scene_{scene_number:02d}.mp4"
     )
+
+    if output_path.exists():
+        output_path.unlink()
 
     scene.render.filepath = str(
         output_path.resolve()
@@ -533,7 +666,26 @@ def render_scene_clip(
             f"Scene MP4 empty hai: {output_path}"
         )
 
+    size_mb = (
+        output_path.stat().st_size
+        / (1024 * 1024)
+    )
+
+    print(
+        f"Scene {scene_number} ready: "
+        f"{size_mb:.2f} MB"
+    )
+
     return output_path
+
+
+def purge_unused_data() -> None:
+    try:
+        bpy.ops.outliner.orphans_purge(
+            do_recursive=True,
+        )
+    except Exception:
+        pass
 
 
 def main() -> None:
@@ -557,13 +709,13 @@ def main() -> None:
 
     generated_files: list[Path] = []
 
-    for index, duration in enumerate(
+    for scene_number, duration in enumerate(
         SCENE_DURATIONS,
         start=1,
     ):
         output_path = render_scene_clip(
             root=root,
-            scene_number=index,
+            scene_number=scene_number,
             duration_seconds=duration,
         )
 
@@ -571,13 +723,19 @@ def main() -> None:
             output_path
         )
 
-    bpy.ops.wm.save_as_mainfile(
-        filepath=bpy.data.filepath,
-    )
+        purge_unused_data()
+
+    if bpy.data.filepath:
+        bpy.ops.wm.save_as_mainfile(
+            filepath=bpy.data.filepath,
+        )
 
     print("========================================")
     print("Blender Short animations complete")
-    print(f"Generated clips: {len(generated_files)}")
+    print(
+        f"Generated clips: "
+        f"{len(generated_files)}"
+    )
 
     for file_path in generated_files:
         print(file_path)
@@ -586,6 +744,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    import mathutils
-
     main()
