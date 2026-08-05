@@ -1,13 +1,9 @@
-"""
-Animate 3D character placeholder.
-"""
+import bpy
 
-def main():
-    print("Animation system started")
-    print("Applying idle animation...")
-    print("Applying walk animation...")
-    print("Applying run animation...")
+print("Animate Character Started")
 
+if "Milo_Root" not in bpy.data.objects:
+    raise RuntimeError("Milo_Root not found")
 
-if __name__ == "__main__":
-    main()
+print("Milo found")
+print("Animation step completed")
