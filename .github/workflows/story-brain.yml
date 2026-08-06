@@ -116,7 +116,9 @@ jobs:
 
       - name: Upload Short and Long automatically to YouTube
         env:
-          YOUTUBE_CREDENTIALS_B64: ${{ secrets.YOUTUBE_CREDENTIALS_B64 }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
           YOUTUBE_PRIVACY_STATUS: ${{ secrets.YOUTUBE_PRIVACY_STATUS }}
         run: |
           python youtube_uploader.py
