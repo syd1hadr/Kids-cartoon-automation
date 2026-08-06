@@ -1,4 +1,3 @@
-import base64
 import json
 import os
 import random
@@ -73,91 +72,63 @@ def load_story(
     return story
 
 
-def decode_credentials_secret() -> dict[str, Any]:
-    credentials_b64 = os.getenv(
-        "YOUTUBE_CREDENTIALS_B64",
-        "",
-    ).strip()
+def load_youtube_credentials() -> dict[str, Any]:
+    credentials_data = {
+        "client_id": os.getenv(
+            "YOUTUBE_CLIENT_ID",
+            "",
+        ).strip(),
+        "client_secret": os.getenv(
+            "YOUTUBE_CLIENT_SECRET",
+            "",
+        ).strip(),
+        "refresh_token": os.getenv(
+            "YOUTUBE_REFRESH_TOKEN",
+            "",
+        ).strip(),
+        "token_uri": "https://oauth2.googleapis.com/token",
+    }
 
-    if not credentials_b64:
-        raise RuntimeError(
-            "YOUTUBE_CREDENTIALS_B64 GitHub secret missing hai."
+    missing_fields = [
+        field
+        for field in (
+            "client_id",
+            "client_secret",
+            "refresh_token",
         )
+        if not credentials_data[field]
+    ]
 
-    try:
-        credentials_json = base64.b64decode(
-            credentials_b64,
-            validate=True,
-        ).decode("utf-8")
-
-        credentials_data = json.loads(
-            credentials_json
-        )
-    except Exception as error:
+    if missing_fields:
         raise RuntimeError(
-            "YOUTUBE_CREDENTIALS_B64 valid Base64 JSON nahi hai."
-        ) from error
-
-    if not isinstance(credentials_data, dict):
-        raise RuntimeError(
-            "YouTube credentials JSON object format mein nahi hai."
+            "YouTube GitHub secrets missing hain: "
+            + ", ".join(missing_fields)
         )
 
     return credentials_data
 
 
 def get_credentials() -> Credentials:
-    credentials_data = decode_credentials_secret()
-
-    required_fields = [
-        "client_id",
-        "client_secret",
-        "refresh_token",
-    ]
-
-    missing_fields = [
-        field
-        for field in required_fields
-        if not str(
-            credentials_data.get(field, "")
-        ).strip()
-    ]
-
-    if missing_fields:
-        raise RuntimeError(
-            "YouTube credentials mein fields missing hain: "
-            + ", ".join(missing_fields)
-        )
-
-    credentials_data.setdefault(
-        "token_uri",
-        "https://oauth2.googleapis.com/token",
-    )
-
-    credentials_data["scopes"] = [
-        YOUTUBE_SCOPE
-    ]
+    credentials_data = load_youtube_credentials()
 
     try:
-        credentials = (
-            Credentials.from_authorized_user_info(
-                credentials_data,
-                scopes=[YOUTUBE_SCOPE],
-            )
+        credentials = Credentials.from_authorized_user_info(
+            credentials_data,
+            scopes=[YOUTUBE_SCOPE],
         )
 
-        if not credentials.valid:
-            credentials.refresh(Request())
+        credentials.refresh(Request())
 
     except Exception as error:
         raise RuntimeError(
             "YouTube OAuth credentials refresh nahi ho saken. "
-            "Refresh token aur client details check karo."
+            "Client ID, Client Secret aur Refresh Token check karo. "
+            f"Original error: {type(error).__name__}"
         ) from error
 
     if not credentials.valid:
         raise RuntimeError(
-            "YouTube credentials valid nahi huin."
+            "YouTube credentials refresh ke baad bhi valid nahi huin."
         )
 
     return credentials
@@ -430,9 +401,7 @@ def resumable_upload(
 
     while response is None:
         try:
-            upload_status, response = (
-                request.next_chunk()
-            )
+            upload_status, response = request.next_chunk()
 
             if upload_status:
                 progress = int(
