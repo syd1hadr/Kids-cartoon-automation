@@ -25,7 +25,9 @@ SHORT_SCENE_COUNT = 6
 
 LONG_SEGMENT_DURATIONS = [18] * 12
 LONG_SEGMENT_COUNT = 12
-LONG_DURATION_SECONDS = sum(LONG_SEGMENT_DURATIONS)
+LONG_DURATION_SECONDS = sum(
+    LONG_SEGMENT_DURATIONS
+)
 
 
 def get_client() -> Anthropic:
@@ -47,7 +49,9 @@ def get_client() -> Anthropic:
 
 
 def load_trend_data() -> dict[str, Any]:
-    trend_path = Path("output/trend.json")
+    trend_path = Path(
+        "output/trend.json"
+    )
 
     if not trend_path.exists():
         print(
@@ -60,8 +64,8 @@ def load_trend_data() -> dict[str, Any]:
             "selected_score": 0,
             "topic_rankings": [],
             "copyright_rule": (
-                "Create completely original lyrics, melody direction, "
-                "story and visuals."
+                "Create completely original lyrics, "
+                "melody direction, story and visuals."
             ),
             "trend_source_available": False,
         }
@@ -77,7 +81,10 @@ def load_trend_data() -> dict[str, Any]:
             f"trend.json valid JSON nahi hai: {error}"
         ) from error
 
-    if not isinstance(trend_data, dict):
+    if not isinstance(
+        trend_data,
+        dict,
+    ):
         raise RuntimeError(
             "trend.json object format mein nahi hai."
         )
@@ -89,10 +96,13 @@ def load_trend_data() -> dict[str, Any]:
         )
     ).strip()
 
-    trend_data["selected_topic"] = selected_topic
-    trend_data["trend_source_available"] = bool(
-        selected_topic
-    )
+    trend_data[
+        "selected_topic"
+    ] = selected_topic
+
+    trend_data[
+        "trend_source_available"
+    ] = bool(selected_topic)
 
     return trend_data
 
@@ -114,11 +124,15 @@ def select_unique_topic(
     print("----------------------------------------")
     print("Unique topic manager result:")
     print(
-        f"Trend suggestion: "
+        "Trend suggestion: "
         f"{suggested_topic or 'none'}"
     )
-    print(f"Final topic: {selected['topic']}")
-    print(f"Category: {selected['category']}")
+    print(
+        f"Final topic: {selected['topic']}"
+    )
+    print(
+        f"Category: {selected['category']}"
+    )
     print("----------------------------------------")
 
     return selected
@@ -136,7 +150,10 @@ def create_prompt(
 
     ranking_text = json.dumps(
         topic_rankings[:5]
-        if isinstance(topic_rankings, list)
+        if isinstance(
+            topic_rankings,
+            list,
+        )
         else [],
         ensure_ascii=False,
     )
@@ -482,12 +499,19 @@ def clean_json(
 ) -> dict[str, Any]:
     cleaned = text.strip()
 
-    if cleaned.startswith("```json"):
+    if cleaned.startswith(
+        "```json"
+    ):
         cleaned = cleaned[7:].strip()
-    elif cleaned.startswith("```"):
+
+    elif cleaned.startswith(
+        "```"
+    ):
         cleaned = cleaned[3:].strip()
 
-    if cleaned.endswith("```"):
+    if cleaned.endswith(
+        "```"
+    ):
         cleaned = cleaned[:-3].strip()
 
     first_brace = cleaned.find("{")
@@ -502,7 +526,10 @@ def clean_json(
         ]
 
     try:
-        parsed = json.loads(cleaned)
+        parsed = json.loads(
+            cleaned
+        )
+
     except json.JSONDecodeError as error:
         preview = cleaned[:500]
 
@@ -511,7 +538,10 @@ def clean_json(
             f"{error}. Response preview: {preview}"
         ) from error
 
-    if not isinstance(parsed, dict):
+    if not isinstance(
+        parsed,
+        dict,
+    ):
         raise RuntimeError(
             "Claude response JSON object nahi hai."
         )
@@ -530,34 +560,74 @@ def normalize_text(
 def validate_short_scenes(
     story: dict[str, Any],
 ) -> None:
-    scenes = story.get("scenes")
+    scenes = story.get(
+        "scenes"
+    )
 
-    if not isinstance(scenes, list):
+    if not isinstance(
+        scenes,
+        list,
+    ):
         raise RuntimeError(
             "Story mein Short scenes list missing hai."
         )
 
-    if len(scenes) != SHORT_SCENE_COUNT:
+    valid_scenes = [
+        scene
+        for scene in scenes
+        if isinstance(
+            scene,
+            dict,
+        )
+    ]
+
+    if len(
+        valid_scenes
+    ) < SHORT_SCENE_COUNT:
         raise RuntimeError(
-            f"Exactly {SHORT_SCENE_COUNT} Short scenes "
-            f"expected thin, lekin {len(scenes)} mili."
+            f"Kam az kam {SHORT_SCENE_COUNT} Short scenes "
+            f"chahiye thin, lekin {len(valid_scenes)} mili."
         )
 
-    for index, scene in enumerate(scenes):
-        if not isinstance(scene, dict):
-            raise RuntimeError(
-                f"Short scene {index + 1} valid object nahi hai."
-            )
+    if len(
+        valid_scenes
+    ) > SHORT_SCENE_COUNT:
+        print(
+            f"Warning: Claude ne {len(valid_scenes)} Short scenes dein. "
+            f"Sirf pehli {SHORT_SCENE_COUNT} use hongi."
+        )
 
+    scenes = valid_scenes[
+        :SHORT_SCENE_COUNT
+    ]
+
+    story["scenes"] = scenes
+
+    for index, scene in enumerate(
+        scenes
+    ):
         scene_number = index + 1
-        duration = SHORT_SCENE_DURATIONS[index]
+        duration = (
+            SHORT_SCENE_DURATIONS[
+                index
+            ]
+        )
 
-        scene["scene_number"] = scene_number
-        scene["duration_seconds"] = duration
+        scene[
+            "scene_number"
+        ] = scene_number
+
+        scene[
+            "duration_seconds"
+        ] = duration
 
         lyric = normalize_text(
-            scene.get("lyric")
-            or scene.get("narration")
+            scene.get(
+                "lyric"
+            )
+            or scene.get(
+                "narration"
+            )
             or ""
         )
 
@@ -566,7 +636,9 @@ def validate_short_scenes(
                 f"Short scene {scene_number} mein lyric missing hai."
             )
 
-        if len(lyric.split()) > 8:
+        if len(
+            lyric.split()
+        ) > 8:
             print(
                 f"Warning: Short scene {scene_number} ki lyric "
                 "8 words tak trim ki ja rahi hai."
@@ -608,19 +680,19 @@ def validate_short_scenes(
         )
 
         if not action:
-            raise RuntimeError(
-                f"Short scene {scene_number} mein action missing hai."
+            action = (
+                "Characters perform the learning action naturally."
             )
 
         if not visual_prompt:
-            raise RuntimeError(
-                f"Short scene {scene_number} mein "
-                "visual_prompt missing hai."
+            visual_prompt = (
+                "Premium bright 3D preschool cartoon scene "
+                "with natural anatomy and clear learning action."
             )
 
         if not animation_prompt:
             animation_prompt = (
-                f"{action}. The characters move continuously "
+                f"{action} Characters move continuously "
                 "with natural body movement, facial expressions, "
                 "eye movement and correct anatomy."
             )
@@ -631,13 +703,17 @@ def validate_short_scenes(
             )
 
         scene["action"] = action
-        scene["visual_prompt"] = visual_prompt
-        scene["animation_prompt"] = (
-            animation_prompt
-        )
-        scene["camera_motion"] = (
-            camera_motion
-        )
+        scene[
+            "visual_prompt"
+        ] = visual_prompt
+
+        scene[
+            "animation_prompt"
+        ] = animation_prompt
+
+        scene[
+            "camera_motion"
+        ] = camera_motion
 
         learning_goal = normalize_text(
             scene.get(
@@ -651,9 +727,9 @@ def validate_short_scenes(
                 "follow the song action"
             )
 
-        scene["learning_goal"] = (
-            learning_goal
-        )
+        scene[
+            "learning_goal"
+        ] = learning_goal
 
         sound_effects = scene.get(
             "sound_effects",
@@ -666,7 +742,9 @@ def validate_short_scenes(
         ):
             sound_effects = []
 
-        scene["sound_effects"] = [
+        scene[
+            "sound_effects"
+        ] = [
             normalize_text(sound)
             for sound in sound_effects
             if normalize_text(sound)
@@ -680,7 +758,10 @@ def validate_long_video(
         "long_video"
     )
 
-    if not isinstance(long_video, dict):
+    if not isinstance(
+        long_video,
+        dict,
+    ):
         raise RuntimeError(
             "long_video planning missing hai."
         )
@@ -689,41 +770,71 @@ def validate_long_video(
         "segments"
     )
 
-    if not isinstance(segments, list):
+    if not isinstance(
+        segments,
+        list,
+    ):
         raise RuntimeError(
             "Long video segments list missing hai."
         )
 
-    if len(segments) != LONG_SEGMENT_COUNT:
-        raise RuntimeError(
-            f"Exactly {LONG_SEGMENT_COUNT} long segments "
-            f"expected thay, lekin {len(segments)} mile."
+    valid_segments = [
+        segment
+        for segment in segments
+        if isinstance(
+            segment,
+            dict,
         )
+    ]
+
+    if len(
+        valid_segments
+    ) < LONG_SEGMENT_COUNT:
+        raise RuntimeError(
+            f"Kam az kam {LONG_SEGMENT_COUNT} long segments "
+            f"chahiye thay, lekin {len(valid_segments)} mile."
+        )
+
+    if len(
+        valid_segments
+    ) > LONG_SEGMENT_COUNT:
+        print(
+            f"Warning: Claude ne {len(valid_segments)} long segments diye. "
+            f"Sirf pehle {LONG_SEGMENT_COUNT} use honge."
+        )
+
+    segments = valid_segments[
+        :LONG_SEGMENT_COUNT
+    ]
+
+    long_video[
+        "segments"
+    ] = segments
 
     for index, segment in enumerate(
         segments
     ):
-        if not isinstance(segment, dict):
-            raise RuntimeError(
-                f"Long segment {index + 1} valid object nahi hai."
-            )
-
         segment_number = index + 1
 
-        segment["segment_number"] = (
-            segment_number
-        )
+        segment[
+            "segment_number"
+        ] = segment_number
 
-        segment["duration_seconds"] = (
-            LONG_SEGMENT_DURATIONS[index]
-        )
+        segment[
+            "duration_seconds"
+        ] = LONG_SEGMENT_DURATIONS[
+            index
+        ]
 
         lyrics = segment.get(
             "lyrics",
             [],
         )
 
-        if not isinstance(lyrics, list):
+        if not isinstance(
+            lyrics,
+            list,
+        ):
             lyrics = []
 
         cleaned_lyrics = [
@@ -732,11 +843,13 @@ def validate_long_video(
             if normalize_text(line)
         ]
 
-        if len(cleaned_lyrics) < 2:
-            raise RuntimeError(
-                f"Long segment {segment_number} mein "
-                "kam az kam 2 lyric lines honi chahiye."
-            )
+        if len(
+            cleaned_lyrics
+        ) < 2:
+            cleaned_lyrics = [
+                "Come and learn with Milo today",
+                "Move and sing the happy way",
+            ]
 
         final_lyrics: list[str] = []
 
@@ -748,18 +861,31 @@ def validate_long_video(
                     words[:9]
                 )
 
+            if len(
+                line.split()
+            ) < 3:
+                line = (
+                    line
+                    + " with Milo"
+                ).strip()
+
             final_lyrics.append(
                 line
             )
 
-        segment["lyrics"] = final_lyrics
+        segment[
+            "lyrics"
+        ] = final_lyrics
 
         actions = segment.get(
             "actions",
             [],
         )
 
-        if not isinstance(actions, list):
+        if not isinstance(
+            actions,
+            list,
+        ):
             actions = []
 
         cleaned_actions = [
@@ -769,14 +895,16 @@ def validate_long_video(
         ]
 
         if not cleaned_actions:
-            raise RuntimeError(
-                f"Long segment {segment_number} mein "
-                "movement actions missing hain."
-            )
+            cleaned_actions = [
+                (
+                    "Characters move and follow the "
+                    "learning action naturally."
+                )
+            ]
 
-        segment["actions"] = (
-            cleaned_actions[:4]
-        )
+        segment[
+            "actions"
+        ] = cleaned_actions[:4]
 
         visual_direction = normalize_text(
             segment.get(
@@ -800,14 +928,15 @@ def validate_long_video(
         )
 
         if not visual_direction:
-            raise RuntimeError(
-                f"Long segment {segment_number} mein "
-                "visual_direction missing hai."
+            visual_direction = (
+                "Bright premium 3D preschool cartoon scene "
+                "with natural character movement, correct anatomy "
+                "and clear learning action."
             )
 
         if not animation_prompt:
             animation_prompt = (
-                f"{visual_direction}. Characters move continuously "
+                f"{visual_direction} Characters move continuously "
                 "with natural walking, dancing, gestures, facial "
                 "expressions and correct anatomy."
             )
@@ -817,23 +946,108 @@ def validate_long_video(
                 "smooth preschool cinematic camera movement"
             )
 
-        segment["visual_direction"] = (
-            visual_direction
+        segment[
+            "visual_direction"
+        ] = visual_direction
+
+        segment[
+            "animation_prompt"
+        ] = animation_prompt
+
+        segment[
+            "camera_motion"
+        ] = camera_motion
+
+        characters_used = segment.get(
+            "characters_used",
+            [],
         )
 
-        segment["animation_prompt"] = (
-            animation_prompt
+        if not isinstance(
+            characters_used,
+            list,
+        ):
+            characters_used = []
+
+        allowed_characters = [
+            character
+            for character in characters_used
+            if character in {
+                "Milo",
+                "Coco",
+                "Poko",
+                "Ducky",
+            }
+        ]
+
+        if not allowed_characters:
+            allowed_characters = [
+                "Milo",
+                "Coco",
+            ]
+
+        segment[
+            "characters_used"
+        ] = allowed_characters[:4]
+
+        sound_effects = segment.get(
+            "sound_effects",
+            [],
         )
 
-        segment["camera_motion"] = (
-            camera_motion
+        if not isinstance(
+            sound_effects,
+            list,
+        ):
+            sound_effects = []
+
+        segment[
+            "sound_effects"
+        ] = [
+            normalize_text(sound)
+            for sound in sound_effects
+            if normalize_text(sound)
+        ][:3]
+
+        learning_goal = normalize_text(
+            segment.get(
+                "learning_goal",
+                "",
+            )
         )
 
-    long_video["duration_seconds"] = (
-        LONG_DURATION_SECONDS
-    )
+        if not learning_goal:
+            learning_goal = (
+                "learn one simple part of the topic"
+            )
 
-    long_video["format"] = "16:9"
+        segment[
+            "learning_goal"
+        ] = learning_goal
+
+        section_name = normalize_text(
+            segment.get(
+                "section_name",
+                "",
+            )
+        )
+
+        if not section_name:
+            section_name = (
+                f"Learning Part {segment_number}"
+            )
+
+        segment[
+            "section_name"
+        ] = section_name
+
+    long_video[
+        "duration_seconds"
+    ] = LONG_DURATION_SECONDS
+
+    long_video[
+        "format"
+    ] = "16:9"
 
 
 def normalize_youtube_data(
@@ -861,11 +1075,16 @@ def normalize_youtube_data(
     )
 
     title_limit = (
-        70 if is_short else 90
+        70
+        if is_short
+        else 90
     )
 
-    youtube_data["title"] = (
-        title or default_title
+    youtube_data[
+        "title"
+    ] = (
+        title
+        or default_title
     )[:title_limit]
 
     description = normalize_text(
@@ -875,16 +1094,19 @@ def normalize_youtube_data(
         )
     )
 
-    youtube_data["description"] = (
-        description
-    )
+    youtube_data[
+        "description"
+    ] = description
 
     hashtags = youtube_data.get(
         "hashtags",
         [],
     )
 
-    if not isinstance(hashtags, list):
+    if not isinstance(
+        hashtags,
+        list,
+    ):
         hashtags = []
 
     required_hashtags = (
@@ -906,7 +1128,8 @@ def normalize_youtube_data(
     final_hashtags: list[str] = []
 
     for hashtag in (
-        hashtags + required_hashtags
+        hashtags
+        + required_hashtags
     ):
         cleaned_hashtag = normalize_text(
             hashtag
@@ -922,7 +1145,8 @@ def normalize_youtube_data(
             "#"
         ):
             cleaned_hashtag = (
-                "#" + cleaned_hashtag
+                "#"
+                + cleaned_hashtag
             )
 
         if (
@@ -933,9 +1157,9 @@ def normalize_youtube_data(
                 cleaned_hashtag
             )
 
-    youtube_data["hashtags"] = (
-        final_hashtags[:10]
-    )
+    youtube_data[
+        "hashtags"
+    ] = final_hashtags[:10]
 
     return youtube_data
 
@@ -946,31 +1170,96 @@ def validate_and_normalize_story(
     selected_topic: str,
     topic_category: str,
 ) -> dict[str, Any]:
-    validate_short_scenes(story)
-    validate_long_video(story)
-
-    story["selected_trend_topic"] = (
-        selected_topic
+    validate_short_scenes(
+        story
     )
 
-    story["topic_category"] = (
-        topic_category
+    validate_long_video(
+        story
     )
 
-    story["duration_seconds"] = sum(
+    story[
+        "selected_trend_topic"
+    ] = selected_topic
+
+    story[
+        "topic_category"
+    ] = topic_category
+
+    story[
+        "duration_seconds"
+    ] = sum(
         SHORT_SCENE_DURATIONS
     )
 
-    story["content_type"] = (
+    story[
+        "content_type"
+    ] = (
         "preschool_learning_rhyme"
     )
+
+    story_id = normalize_text(
+        story.get(
+            "story_id",
+            "",
+        )
+    )
+
+    if not story_id:
+        story_id = (
+            selected_topic.lower()
+            .replace(
+                " ",
+                "-",
+            )
+            + "-milo-rhyme"
+        )
+
+    story[
+        "story_id"
+    ] = story_id
+
+    characters_used = story.get(
+        "characters_used",
+        [],
+    )
+
+    if not isinstance(
+        characters_used,
+        list,
+    ):
+        characters_used = []
+
+    allowed_characters = [
+        character
+        for character in characters_used
+        if character in {
+            "Milo",
+            "Coco",
+            "Poko",
+            "Ducky",
+        }
+    ]
+
+    if not allowed_characters:
+        allowed_characters = [
+            "Milo",
+            "Coco",
+        ]
+
+    story[
+        "characters_used"
+    ] = allowed_characters[:4]
 
     chorus = story.get(
         "chorus",
         [],
     )
 
-    if not isinstance(chorus, list):
+    if not isinstance(
+        chorus,
+        list,
+    ):
         chorus = []
 
     cleaned_chorus = [
@@ -980,20 +1269,27 @@ def validate_and_normalize_story(
     ]
 
     if not cleaned_chorus:
-        scenes = story["scenes"]
+        scenes = story[
+            "scenes"
+        ]
 
         cleaned_chorus = [
             scenes[0]["lyric"],
             scenes[-1]["lyric"],
         ]
 
-    story["chorus"] = (
-        cleaned_chorus[:2]
+    story[
+        "chorus"
+    ] = cleaned_chorus[:2]
+
+    music = story.get(
+        "music"
     )
 
-    music = story.get("music")
-
-    if not isinstance(music, dict):
+    if not isinstance(
+        music,
+        dict,
+    ):
         music = {}
 
     music.update(
@@ -1013,25 +1309,115 @@ def validate_and_normalize_story(
         }
     )
 
-    story["music"] = music
+    story[
+        "music"
+    ] = music
 
-    story["youtube"] = (
-        normalize_youtube_data(
-            story.get("youtube"),
-            is_short=True,
-        )
+    story[
+        "youtube"
+    ] = normalize_youtube_data(
+        story.get(
+            "youtube"
+        ),
+        is_short=True,
     )
 
-    long_video = story["long_video"]
+    long_video = story[
+        "long_video"
+    ]
 
-    long_video["youtube"] = (
-        normalize_youtube_data(
-            long_video.get("youtube"),
-            is_short=False,
-        )
+    long_video[
+        "youtube"
+    ] = normalize_youtube_data(
+        long_video.get(
+            "youtube"
+        ),
+        is_short=False,
     )
 
-    story["trend_metadata"] = {
+    opening_lines = long_video.get(
+        "opening_lines",
+        [],
+    )
+
+    if not isinstance(
+        opening_lines,
+        list,
+    ):
+        opening_lines = []
+
+    cleaned_opening_lines = [
+        normalize_text(line)
+        for line in opening_lines
+        if normalize_text(line)
+    ]
+
+    if not cleaned_opening_lines:
+        cleaned_opening_lines = [
+            "Hello friends, come sing with Milo",
+            f"Today we learn about {selected_topic}",
+        ]
+
+    long_video[
+        "opening_lines"
+    ] = cleaned_opening_lines[:2]
+
+    ending_lines = long_video.get(
+        "ending_lines",
+        [],
+    )
+
+    if not isinstance(
+        ending_lines,
+        list,
+    ):
+        ending_lines = []
+
+    cleaned_ending_lines = [
+        normalize_text(line)
+        for line in ending_lines
+        if normalize_text(line)
+    ]
+
+    if not cleaned_ending_lines:
+        cleaned_ending_lines = [
+            "Great learning, everyone",
+            "Goodbye friends, see you soon",
+        ]
+
+    long_video[
+        "ending_lines"
+    ] = cleaned_ending_lines[:2]
+
+    long_chorus = long_video.get(
+        "chorus",
+        [],
+    )
+
+    if not isinstance(
+        long_chorus,
+        list,
+    ):
+        long_chorus = []
+
+    cleaned_long_chorus = [
+        normalize_text(line)
+        for line in long_chorus
+        if normalize_text(line)
+    ]
+
+    if not cleaned_long_chorus:
+        cleaned_long_chorus = (
+            story["chorus"][:2]
+        )
+
+    long_video[
+        "chorus"
+    ] = cleaned_long_chorus[:2]
+
+    story[
+        "trend_metadata"
+    ] = {
         "suggested_topic": trend_data.get(
             "selected_topic",
             "",
@@ -1112,7 +1498,7 @@ Never return:
 
         try:
             print(
-                f"Trying Claude model: "
+                "Trying Claude model: "
                 f"{model_name}"
             )
 
@@ -1154,22 +1540,22 @@ Never return:
                 )
             )
 
-            story["ai_provider"] = (
-                "anthropic"
-            )
+            story[
+                "ai_provider"
+            ] = "anthropic"
 
-            story["claude_model"] = (
-                model_name
-            )
+            story[
+                "claude_model"
+            ] = model_name
 
-            story["generated_at"] = (
-                datetime.now(
-                    timezone.utc
-                ).isoformat()
-            )
+            story[
+                "generated_at"
+            ] = datetime.now(
+                timezone.utc
+            ).isoformat()
 
             print(
-                f"Success with Claude model: "
+                "Success with Claude model: "
                 f"{model_name}"
             )
 
@@ -1177,11 +1563,13 @@ Never return:
 
         except Exception as error:
             print(
-                f"Claude model failed: "
+                "Claude model failed: "
                 f"{model_name}"
             )
 
-            print(error)
+            print(
+                error
+            )
 
             errors.append(
                 f"{model_name}: {error}"
@@ -1210,13 +1598,18 @@ def safe_story_name(
         "-_"
     )
 
-    return safe_name or "milo-rhyme"
+    return (
+        safe_name
+        or "milo-rhyme"
+    )
 
 
 def save_story(
     story: dict[str, Any],
 ) -> Path:
-    output_dir = Path("output")
+    output_dir = Path(
+        "output"
+    )
 
     output_dir.mkdir(
         parents=True,
@@ -1268,8 +1661,13 @@ def main() -> None:
         trend_data=trend_data,
     )
 
-    selected_topic = selected["topic"]
-    topic_category = selected["category"]
+    selected_topic = selected[
+        "topic"
+    ]
+
+    topic_category = selected[
+        "category"
+    ]
 
     story = generate_story(
         trend_data=trend_data,
@@ -1301,12 +1699,12 @@ def main() -> None:
     )
 
     print(
-        f"Topic: "
+        "Topic: "
         f"{story['selected_trend_topic']}"
     )
 
     print(
-        f"Category: "
+        "Category: "
         f"{story['topic_category']}"
     )
 
@@ -1331,7 +1729,7 @@ def main() -> None:
     )
 
     print(
-        f"Claude model: "
+        "Claude model: "
         f"{story.get('claude_model', 'unknown')}"
     )
 
