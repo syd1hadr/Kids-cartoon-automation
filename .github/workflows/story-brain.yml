@@ -81,6 +81,7 @@ jobs:
           python main.py
 
       - name: Generate Short and Long reference images
+        if: ${{ false }}
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
